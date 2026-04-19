@@ -1,0 +1,200 @@
+{
+  "info": {
+    "_postman_id": "a1b2c3d4-pdyc-greater-events",
+    "name": "Greater Events — Admin API",
+    "description": "Spring Boot 3.4 — `ar.edu.unnoba.pdyc2026.events`. Rutas bajo `/admin/`.\n\n**Entorno:** importá `Greater-Events-Local.postman_environment.json` y seleccioná **Greater Events — Local**.\n\n**Perfiles:** `application.properties` = MySQL `localhost:3306/pdyc2026` (root / insecure). `application-local.properties` = H2 (`--spring.profiles.active=local`).\n\n**Seed (`SampleDataLoader`):** si la tabla `artists` está vacía al arrancar, carga artistas **id 1–6** y eventos **id 1–5** (orden de guardado JPA). Evento **1** tentative «Jazz al Parque» con artistas **1** y **4** en grilla.\n\n**Variables:** `artistId=2` (DJ Nebula, activo, no en evento 1) para **Add Artist**. `artistIdInLineup=1` para **Remove Artist**. `artistIdFree=7` para **Update** / **Delete** sin historial: ejecutá **Create Artist** una vez y reemplazá `7` por el `id` devuelto (en BD solo con seed, el id 7 no existe hasta crear).\n\n**Errores:** cuerpo JSON `{\"error\":\"mensaje\"}` con **400** (reglas de negocio), **404** (no encontrado). DELETE evento → **204**. POST artista/evento → **201**.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" }
+  ],
+  "item": [
+    {
+      "name": "Artists",
+      "item": [
+        {
+          "name": "Get Artists (all)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/admin/artists",
+            "description": "`GET /admin/artists`"
+          }
+        },
+        {
+          "name": "Get Artists (filter genre)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/admin/artists?genre=rock",
+            "description": "`GET /admin/artists?genre=` rock | techno | pop | jazz | folk"
+          }
+        },
+        {
+          "name": "Get Artist by id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/admin/artists/{{artistIdInLineup}}",
+            "description": "`GET /admin/artists/{id}`"
+          }
+        },
+        {
+          "name": "Create Artist",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Artista Postman\",\n  \"genre\": \"jazz\"\n}"
+            },
+            "url": "{{baseUrl}}/admin/artists",
+            "description": "`POST /admin/artists` — **201**. Copiá el `id` del JSON a la variable de entorno `artistIdFree` para probar PUT/DELETE sin eventos."
+          }
+        },
+        {
+          "name": "Update Artist",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nombre actualizado\",\n  \"genre\": \"pop\"\n}"
+            },
+            "url": "{{baseUrl}}/admin/artists/{{artistIdFree}}",
+            "description": "`PUT /admin/artists/{id}` — Solo si el artista **no** participó en ningún evento. Con solo seed, **400** para ids 1–6. Usá `artistIdFree` tras **Create Artist**."
+          }
+        },
+        {
+          "name": "Delete Artist",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/admin/artists/{{artistIdFree}}",
+            "description": "`DELETE /admin/artists/{id}` — **204** borrado físico (sin eventos). **200** + JSON si ya tenía eventos (desactiva). Misma variable `artistIdFree` que PUT."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Events",
+      "item": [
+        {
+          "name": "Get Events (all)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/admin/events",
+            "description": "`GET /admin/events` — `name`, `start_date`, `state`, `artist_count`"
+          }
+        },
+        {
+          "name": "Get Events (filter state)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/admin/events?state=tentative",
+            "description": "`GET /admin/events?state=` tentative | confirmed | rescheduled | cancelled"
+          }
+        },
+        {
+          "name": "Get Event by id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/admin/events/{{eventId}}",
+            "description": "`GET /admin/events/{id}` — detalle + `artists[]`"
+          }
+        },
+        {
+          "name": "Create Event",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Festival Demo\",\n  \"start_date\": \"2030-12-01T20:00:00\",\n  \"description\": \"Descripción del evento\"\n}"
+            },
+            "url": "{{baseUrl}}/admin/events",
+            "description": "`POST /admin/events` — **201**. Inicial **tentative**, sin artistas."
+          }
+        },
+        {
+          "name": "Update Event",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Festival Demo (editado)\",\n  \"start_date\": \"2030-12-02T21:00:00\",\n  \"description\": \"Nueva descripción\"\n}"
+            },
+            "url": "{{baseUrl}}/admin/events/{{eventId}}",
+            "description": "`PUT /admin/events/{id}` — Solo **tentative**. `eventId=1` en seed."
+          }
+        },
+        {
+          "name": "Delete Event",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/admin/events/{{eventId}}",
+            "description": "`DELETE /admin/events/{id}` — **204**. Solo **tentative**; borra el evento seed **1** si lo ejecutás."
+          }
+        },
+        {
+          "name": "Add Artist to Event",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"artist_id\": {{artistId}}\n}"
+            },
+            "url": "{{baseUrl}}/admin/events/{{eventId}}/artists",
+            "description": "`POST .../events/{id}/artists` — Body `artist_id`. Solo **tentative**. `artistId=2` no está en el evento 1 del seed."
+          }
+        },
+        {
+          "name": "Remove Artist from Event",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/admin/events/{{eventId}}/artists/{{artistIdInLineup}}",
+            "description": "`DELETE .../events/{id}/artists/{artistId}` — Solo **tentative**. Consigna original: `song_id`; en código es **artistId**."
+          }
+        },
+        {
+          "name": "Confirm Event",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/admin/events/{{eventId}}/confirmed",
+            "description": "`PUT .../confirmed` — **Tentative** → confirmed; `start_date` **> ahora**."
+          }
+        },
+        {
+          "name": "Reschedule Event",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"start_date\": \"2031-01-15T22:00:00\"\n}"
+            },
+            "url": "{{baseUrl}}/admin/events/{{eventIdConfirmed}}/rescheduled",
+            "description": "`PUT .../rescheduled` — Body `start_date`. Solo **confirmed** o **rescheduled**. Ejemplo: evento seed **2** (confirmed)."
+          }
+        },
+        {
+          "name": "Cancel Event",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/admin/events/{{eventIdConfirmed}}/canceled",
+            "description": "`PUT .../canceled` — Solo **confirmed** o **rescheduled** → cancelled. Ejemplo: evento **2**."
+          }
+        }
+      ]
+    }
+  ]
+}
