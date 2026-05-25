@@ -3,6 +3,7 @@ package ar.edu.unnoba.pdyc2026.events.web;
 import ar.edu.unnoba.pdyc2026.events.exception.BusinessRuleException;
 import ar.edu.unnoba.pdyc2026.events.exception.ResourceNotFoundException;
 import java.util.Map;
+import java.util.concurrent.CompletionException;
 import org.springframework.core.convert.ConversionFailedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +23,19 @@ public class ApiExceptionHandler {
     @ExceptionHandler(BusinessRuleException.class)
     public ResponseEntity<Map<String, String>> badRequest(BusinessRuleException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", ex.getMessage()));
+    }
+
+    @ExceptionHandler(CompletionException.class)
+    public ResponseEntity<Map<String, String>> asyncError(CompletionException ex) {
+        Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+        if (cause instanceof ResourceNotFoundException notFound) {
+            return notFound(notFound);
+        }
+        if (cause instanceof BusinessRuleException badRequest) {
+            return badRequest(badRequest);
+        }
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Unexpected async operation error"));
     }
 
     @ExceptionHandler(ConversionFailedException.class)

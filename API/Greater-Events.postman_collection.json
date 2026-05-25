@@ -2,13 +2,76 @@
   "info": {
     "_postman_id": "a1b2c3d4-pdyc-greater-events",
     "name": "Greater Events — Admin API",
-    "description": "Spring Boot 3.4 — `ar.edu.unnoba.pdyc2026.events`. Rutas bajo `/admin/`.\n\n**Entorno:** importá `Greater-Events-Local.postman_environment.json` y seleccioná **Greater Events — Local**.\n\n**Perfiles:** `application.properties` = MySQL `localhost:3306/pdyc2026` (root / insecure). `application-local.properties` = H2 (`--spring.profiles.active=local`).\n\n**Seed (`SampleDataLoader`):** si la tabla `artists` está vacía al arrancar, carga artistas **id 1–6** y eventos **id 1–5** (orden de guardado JPA). Evento **1** tentative «Jazz al Parque» con artistas **1** y **4** en grilla.\n\n**Variables:** `artistId=2` (DJ Nebula, activo, no en evento 1) para **Add Artist**. `artistIdInLineup=1` para **Remove Artist**. `artistIdFree=7` para **Update** / **Delete** sin historial: ejecutá **Create Artist** una vez y reemplazá `7` por el `id` devuelto (en BD solo con seed, el id 7 no existe hasta crear).\n\n**Errores:** cuerpo JSON `{\"error\":\"mensaje\"}` con **400** (reglas de negocio), **404** (no encontrado). DELETE evento → **204**. POST artista/evento → **201**.",
+    "description": "Spring Boot 3.4 — `ar.edu.unnoba.pdyc2026.events`. TP3: todas las rutas bajo `/admin/` requieren OAuth2 Bearer Token emitido por Keycloak (`unnoba`).\n\n**Entorno:** importá `Greater-Events-Local.postman_environment.json` y seleccioná **Greater Events — Local**.\n\n**OAuth2:** en la pestaña Authorization de la colección usá **Get New Access Token** con Authorization Code. Postman usa `https://oauth.pstmn.io/v1/callback`, `{{keycloakAuthUrl}}`, `{{keycloakTokenUrl}}`, `{{keycloakClientId}}`, `{{keycloakClientSecret}}` y scope `openid`.\n\n**Puertos:** Keycloak corre en `http://localhost:8080`; el backend corre en `http://localhost:8081`.\n\n**Seed (`SampleDataLoader`):** si la tabla `artists` está vacía al arrancar, carga artistas **id 1–6** y eventos **id 1–5** (orden de guardado JPA). Evento **1** tentative «Jazz al Parque» con artistas **1** y **4** en grilla.\n\n**Variables:** `artistId=2` (DJ Nebula, activo, no en evento 1) para **Add Artist**. `artistIdInLineup=1` para **Remove Artist**. `artistIdFree=7` para **Update** / **Delete** sin historial: ejecutá **Create Artist** una vez y reemplazá `7` por el `id` devuelto.\n\n**Errores:** cuerpo JSON `{\"error\":\"mensaje\"}` con **400** (reglas de negocio), **404** (no encontrado). Sin token o token inválido → **401**. DELETE evento/usuario → **204**. POST artista/evento/usuario → **201**.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "baseUrl", "value": "http://localhost:8080" }
+    { "key": "baseUrl", "value": "http://localhost:8081" },
+    { "key": "callbackUrl", "value": "https://oauth.pstmn.io/v1/callback" },
+    { "key": "keycloakAuthUrl", "value": "http://localhost:8080/realms/unnoba/protocol/openid-connect/auth" },
+    { "key": "keycloakTokenUrl", "value": "http://localhost:8080/realms/unnoba/protocol/openid-connect/token" },
+    { "key": "keycloakClientId", "value": "pdyc" },
+    { "key": "keycloakClientSecret", "value": "REEMPLAZAR_CON_CLIENT_SECRET" }
   ],
+  "auth": {
+    "type": "oauth2",
+    "oauth2": [
+      { "key": "grant_type", "value": "authorization_code", "type": "string" },
+      { "key": "callbackUrl", "value": "{{callbackUrl}}", "type": "string" },
+      { "key": "authUrl", "value": "{{keycloakAuthUrl}}", "type": "string" },
+      { "key": "accessTokenUrl", "value": "{{keycloakTokenUrl}}", "type": "string" },
+      { "key": "clientId", "value": "{{keycloakClientId}}", "type": "string" },
+      { "key": "clientSecret", "value": "{{keycloakClientSecret}}", "type": "string" },
+      { "key": "scope", "value": "openid", "type": "string" },
+      { "key": "client_authentication", "value": "body", "type": "string" }
+    ]
+  },
   "item": [
+    {
+      "name": "Admin Users (Keycloak)",
+      "item": [
+        {
+          "name": "Get Admin Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/admin/users",
+            "description": "`GET /admin/users` — lista usuarios del realm `unnoba` consultando Keycloak Admin API."
+          }
+        },
+        {
+          "name": "Get Admin User by id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/admin/users/{{adminUserId}}",
+            "description": "`GET /admin/users/{id}` — `id` es el UUID de Keycloak."
+          }
+        },
+        {
+          "name": "Create Admin User",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin-postman\",\n  \"password\": \"Admin123!\",\n  \"email\": \"admin-postman@example.com\",\n  \"first_name\": \"Admin\",\n  \"last_name\": \"Postman\",\n  \"enabled\": true,\n  \"temporary_password\": false\n}"
+            },
+            "url": "{{baseUrl}}/admin/users",
+            "description": "`POST /admin/users` — **201**. Copiá el `id` devuelto a `adminUserId` para consultar o borrar."
+          }
+        },
+        {
+          "name": "Delete Admin User",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/admin/users/{{adminUserId}}",
+            "description": "`DELETE /admin/users/{id}` — **204**. Elimina el usuario en Keycloak."
+          }
+        }
+      ]
+    },
     {
       "name": "Artists",
       "item": [
