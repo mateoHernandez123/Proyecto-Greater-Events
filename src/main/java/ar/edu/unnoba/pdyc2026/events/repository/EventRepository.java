@@ -2,6 +2,8 @@ package ar.edu.unnoba.pdyc2026.events.repository;
 
 import ar.edu.unnoba.pdyc2026.events.model.Event;
 import ar.edu.unnoba.pdyc2026.events.model.EventState;
+import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -19,4 +21,34 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     @EntityGraph(attributePaths = "artists")
     @Query("select e from Event e where e.id = :id")
     Optional<Event> findWithArtistsById(@Param("id") Long id);
+
+    /**
+     * Eventos publicos vigentes: solo {@code CONFIRMED} o {@code RESCHEDULED} y con fecha futura.
+     * Se ordenan ascendentemente por fecha de inicio para que el catalogo publico aparezca
+     * en orden de proximidad.
+     */
+    @Query("select distinct e from Event e left join fetch e.artists "
+            + "where e.state in :states and e.startDate > :now order by e.startDate asc")
+    List<Event> findPublicUpcoming(
+            @Param("states") Collection<EventState> states, @Param("now") LocalDateTime now);
+
+    /**
+     * Proximos eventos de un artista determinado (publico). Excluye TENTATIVE y CANCELLED.
+     */
+    @Query("select distinct e from Event e join e.artists a left join fetch e.artists "
+            + "where a.id = :artistId and e.state in :states and e.startDate > :now order by e.startDate asc")
+    List<Event> findUpcomingByArtist(
+            @Param("artistId") Long artistId,
+            @Param("states") Collection<EventState> states,
+            @Param("now") LocalDateTime now);
+
+    /**
+     * Eventos proximos donde participa al menos uno de los artistas seguidos por el usuario.
+     */
+    @Query("select distinct e from Event e join e.artists a left join fetch e.artists "
+            + "where a.id in :artistIds and e.state in :states and e.startDate > :now order by e.startDate asc")
+    List<Event> findUpcomingForArtistIds(
+            @Param("artistIds") Collection<Long> artistIds,
+            @Param("states") Collection<EventState> states,
+            @Param("now") LocalDateTime now);
 }

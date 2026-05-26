@@ -1,8 +1,8 @@
 {
   "info": {
     "_postman_id": "a1b2c3d4-pdyc-greater-events",
-    "name": "Greater Events — Admin API",
-    "description": "Spring Boot 3.4 — `ar.edu.unnoba.pdyc2026.events`. TP3: todas las rutas bajo `/admin/` requieren OAuth2 Bearer Token emitido por Keycloak (`unnoba`).\n\n**Entorno:** importá `Greater-Events-Local.postman_environment.json` y seleccioná **Greater Events — Local**.\n\n**OAuth2:** en la pestaña Authorization de la colección usá **Get New Access Token** con Authorization Code. Postman usa `https://oauth.pstmn.io/v1/callback`, `{{keycloakAuthUrl}}`, `{{keycloakTokenUrl}}`, `{{keycloakClientId}}`, `{{keycloakClientSecret}}` y scope `openid`.\n\n**Puertos:** Keycloak corre en `http://localhost:8080`; el backend corre en `http://localhost:8081`.\n\n**Seed (`SampleDataLoader`):** si la tabla `artists` está vacía al arrancar, carga artistas **id 1–6** y eventos **id 1–5** (orden de guardado JPA). Evento **1** tentative «Jazz al Parque» con artistas **1** y **4** en grilla.\n\n**Variables:** `artistId=2` (DJ Nebula, activo, no en evento 1) para **Add Artist**. `artistIdInLineup=1` para **Remove Artist**. `artistIdFree=7` para **Update** / **Delete** sin historial: ejecutá **Create Artist** una vez y reemplazá `7` por el `id` devuelto.\n\n**Errores:** cuerpo JSON `{\"error\":\"mensaje\"}` con **400** (reglas de negocio), **404** (no encontrado). Sin token o token inválido → **401**. DELETE evento/usuario → **204**. POST artista/evento/usuario → **201**.",
+    "name": "Greater Events — API",
+    "description": "Spring Boot 3.4 — `ar.edu.unnoba.pdyc2026.events`. TP3 + TP4.\n\n**Tres niveles de acceso (TP4):**\n- **Publicos** (sin token): `POST /auth/register`, `GET /artists`, `GET /artists/{id}/events`, `GET /events`, `GET /events/{id}`. Nunca devuelven eventos en estado `tentative`.\n- **Admin** (`/admin/**`): requiere Bearer JWT con realm role **admin** (claim `realm_access.roles`). Generar token con flujo Authorization Code usando `adminUsername` / `adminPassword` o desde el folder **Helpers**.\n- **End-user** (`/me/**`): requiere Bearer JWT con realm role **user**. Mismo flujo OAuth2, login con `endUserUsername` / `endUserPassword`.\n\n**Como obtener un token desde Postman:**\n1. Importar `Greater-Events-Local.postman_environment.json` y seleccionar **Greater Events — Local**.\n2. Sobre el folder **Admin endpoints** o **End-user endpoints**, abrir la pestana *Authorization* -> *Get New Access Token*. Postman ya tiene los valores pre-cargados desde el environment.\n3. Loguear con las credenciales correspondientes (admin: `tp3-user/tp3pass`; end-user: `tp4-user/tp4pass`).\n4. *Use Token* y disparar requests.\n\n**Errores estandar:** body JSON `{\"error\":\"mensaje\"}` con **400** (reglas/validacion), **401** (sin token / invalido), **403** (token valido pero rol insuficiente), **404** (no encontrado), **409** (username/email ya registrado).\n\nDocumentacion completa en el `README.md`.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -11,251 +11,167 @@
     { "key": "keycloakAuthUrl", "value": "http://localhost:8080/realms/unnoba/protocol/openid-connect/auth" },
     { "key": "keycloakTokenUrl", "value": "http://localhost:8080/realms/unnoba/protocol/openid-connect/token" },
     { "key": "keycloakClientId", "value": "pdyc" },
-    { "key": "keycloakClientSecret", "value": "REEMPLAZAR_CON_CLIENT_SECRET" }
+    { "key": "keycloakClientSecret", "value": "pdyc-secret-dev" }
   ],
-  "auth": {
-    "type": "oauth2",
-    "oauth2": [
-      { "key": "grant_type", "value": "authorization_code", "type": "string" },
-      { "key": "callbackUrl", "value": "{{callbackUrl}}", "type": "string" },
-      { "key": "authUrl", "value": "{{keycloakAuthUrl}}", "type": "string" },
-      { "key": "accessTokenUrl", "value": "{{keycloakTokenUrl}}", "type": "string" },
-      { "key": "clientId", "value": "{{keycloakClientId}}", "type": "string" },
-      { "key": "clientSecret", "value": "{{keycloakClientSecret}}", "type": "string" },
-      { "key": "scope", "value": "openid", "type": "string" },
-      { "key": "client_authentication", "value": "body", "type": "string" }
-    ]
-  },
+  "auth": { "type": "noauth" },
   "item": [
     {
-      "name": "Admin Users (Keycloak)",
+      "name": "Public endpoints (sin token)",
+      "auth": { "type": "noauth" },
+      "description": "Catalogo publico y registro de usuarios finales. No requieren autenticacion.",
       "item": [
         {
-          "name": "Get Admin Users",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": "{{baseUrl}}/admin/users",
-            "description": "`GET /admin/users` — lista usuarios del realm `unnoba` consultando Keycloak Admin API."
-          }
-        },
-        {
-          "name": "Get Admin User by id",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": "{{baseUrl}}/admin/users/{{adminUserId}}",
-            "description": "`GET /admin/users/{id}` — `id` es el UUID de Keycloak."
-          }
-        },
-        {
-          "name": "Create Admin User",
+          "name": "Register end user",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"admin-postman\",\n  \"password\": \"Admin123!\",\n  \"email\": \"admin-postman@example.com\",\n  \"first_name\": \"Admin\",\n  \"last_name\": \"Postman\",\n  \"enabled\": true,\n  \"temporary_password\": false\n}"
+              "raw": "{\n  \"username\": \"juan.perez\",\n  \"email\": \"juan.perez@example.com\",\n  \"password\": \"Secret123!\",\n  \"first_name\": \"Juan\",\n  \"last_name\": \"Perez\"\n}"
             },
-            "url": "{{baseUrl}}/admin/users",
-            "description": "`POST /admin/users` — **201**. Copiá el `id` devuelto a `adminUserId` para consultar o borrar."
+            "url": "{{baseUrl}}/auth/register",
+            "description": "`POST /auth/register` — **201**. Crea el usuario en Keycloak (rol `user`) y en la DB local. `409` si username o email ya estan registrados."
           }
         },
         {
-          "name": "Delete Admin User",
+          "name": "List active artists",
           "request": {
-            "method": "DELETE",
-            "header": [],
-            "url": "{{baseUrl}}/admin/users/{{adminUserId}}",
-            "description": "`DELETE /admin/users/{id}` — **204**. Elimina el usuario en Keycloak."
+            "method": "GET",
+            "url": "{{baseUrl}}/artists",
+            "description": "`GET /artists` — todos los artistas con `active=true`, ordenados por nombre."
+          }
+        },
+        {
+          "name": "Artist upcoming events",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/artists/{{publicArtistId}}/events",
+            "description": "`GET /artists/{id}/events` — proximos eventos del artista (solo `confirmed` o `rescheduled` y con fecha futura). `404` si el artista no existe o esta inactivo."
+          }
+        },
+        {
+          "name": "List upcoming events",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/events",
+            "description": "`GET /events` — eventos vigentes (`confirmed` o `rescheduled` con fecha futura), ordenados por proximidad de fecha. Nunca incluye `tentative`."
+          }
+        },
+        {
+          "name": "Get event by id",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/events/{{publicEventId}}",
+            "description": "`GET /events/{id}` — detalle publico. Si el evento esta en estado `tentative` responde **404** (la consigna prohibe exponer informacion de eventos tentativos)."
           }
         }
       ]
     },
     {
-      "name": "Artists",
+      "name": "Admin endpoints (rol admin)",
+      "auth": {
+        "type": "oauth2",
+        "oauth2": [
+          { "key": "grant_type", "value": "authorization_code", "type": "string" },
+          { "key": "callbackUrl", "value": "{{callbackUrl}}", "type": "string" },
+          { "key": "authUrl", "value": "{{keycloakAuthUrl}}", "type": "string" },
+          { "key": "accessTokenUrl", "value": "{{keycloakTokenUrl}}", "type": "string" },
+          { "key": "clientId", "value": "{{keycloakClientId}}", "type": "string" },
+          { "key": "clientSecret", "value": "{{keycloakClientSecret}}", "type": "string" },
+          { "key": "scope", "value": "openid", "type": "string" },
+          { "key": "client_authentication", "value": "body", "type": "string" }
+        ]
+      },
+      "description": "Para todos los requests autenticate como **tp3-user / tp3pass** (rol `admin`).",
       "item": [
         {
-          "name": "Get Artists (all)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": "{{baseUrl}}/admin/artists",
-            "description": "`GET /admin/artists`"
-          }
-        },
-        {
-          "name": "Get Artists (filter genre)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": "{{baseUrl}}/admin/artists?genre=rock",
-            "description": "`GET /admin/artists?genre=` rock | techno | pop | jazz | folk"
-          }
-        },
-        {
-          "name": "Get Artist by id",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": "{{baseUrl}}/admin/artists/{{artistIdInLineup}}",
-            "description": "`GET /admin/artists/{id}`"
-          }
-        },
-        {
-          "name": "Create Artist",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Artista Postman\",\n  \"genre\": \"jazz\"\n}"
+          "name": "Admin Users (Keycloak)",
+          "item": [
+            { "name": "List admin users", "request": { "method": "GET", "url": "{{baseUrl}}/admin/users", "description": "`GET /admin/users` — lista usuarios de Keycloak." } },
+            { "name": "Get admin user by id", "request": { "method": "GET", "url": "{{baseUrl}}/admin/users/{{adminUserId}}", "description": "`GET /admin/users/{uuid}`. Copiar el `id` del create response." } },
+            {
+              "name": "Create admin user",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"username\": \"admin-postman\",\n  \"password\": \"Admin123!\",\n  \"email\": \"admin-postman@example.com\",\n  \"first_name\": \"Admin\",\n  \"last_name\": \"Postman\",\n  \"enabled\": true,\n  \"temporary_password\": false\n}" },
+                "url": "{{baseUrl}}/admin/users",
+                "description": "`POST /admin/users` — **201**. TP4: ademas de crear el usuario en Keycloak le asigna automaticamente el realm role **admin**."
+              }
             },
-            "url": "{{baseUrl}}/admin/artists",
-            "description": "`POST /admin/artists` — **201**. Copiá el `id` del JSON a la variable de entorno `artistIdFree` para probar PUT/DELETE sin eventos."
-          }
+            { "name": "Delete admin user", "request": { "method": "DELETE", "url": "{{baseUrl}}/admin/users/{{adminUserId}}", "description": "`DELETE /admin/users/{uuid}` — **204**." } }
+          ]
         },
         {
-          "name": "Update Artist",
-          "request": {
-            "method": "PUT",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Nombre actualizado\",\n  \"genre\": \"pop\"\n}"
-            },
-            "url": "{{baseUrl}}/admin/artists/{{artistIdFree}}",
-            "description": "`PUT /admin/artists/{id}` — Solo si el artista **no** participó en ningún evento. Con solo seed, **400** para ids 1–6. Usá `artistIdFree` tras **Create Artist**."
-          }
+          "name": "Artists",
+          "item": [
+            { "name": "List artists", "request": { "method": "GET", "url": "{{baseUrl}}/admin/artists", "description": "`GET /admin/artists`" } },
+            { "name": "List artists (filter genre)", "request": { "method": "GET", "url": "{{baseUrl}}/admin/artists?genre=rock", "description": "Filtra por genero: rock | techno | pop | jazz | folk." } },
+            { "name": "Get artist", "request": { "method": "GET", "url": "{{baseUrl}}/admin/artists/{{artistIdInLineup}}" } },
+            { "name": "Create artist", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"Artista Postman\",\n  \"genre\": \"jazz\"\n}" }, "url": "{{baseUrl}}/admin/artists" } },
+            { "name": "Update artist", "request": { "method": "PUT", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"Nombre actualizado\",\n  \"genre\": \"pop\"\n}" }, "url": "{{baseUrl}}/admin/artists/{{artistIdFree}}" } },
+            { "name": "Delete artist", "request": { "method": "DELETE", "url": "{{baseUrl}}/admin/artists/{{artistIdFree}}" } }
+          ]
         },
         {
-          "name": "Delete Artist",
-          "request": {
-            "method": "DELETE",
-            "header": [],
-            "url": "{{baseUrl}}/admin/artists/{{artistIdFree}}",
-            "description": "`DELETE /admin/artists/{id}` — **204** borrado físico (sin eventos). **200** + JSON si ya tenía eventos (desactiva). Misma variable `artistIdFree` que PUT."
-          }
+          "name": "Events",
+          "item": [
+            { "name": "List events", "request": { "method": "GET", "url": "{{baseUrl}}/admin/events" } },
+            { "name": "List events (filter state)", "request": { "method": "GET", "url": "{{baseUrl}}/admin/events?state=tentative" } },
+            { "name": "Get event by id", "request": { "method": "GET", "url": "{{baseUrl}}/admin/events/{{eventId}}" } },
+            { "name": "Create event", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"Festival Demo\",\n  \"start_date\": \"2030-12-01T20:00:00\",\n  \"description\": \"Descripcion del evento\"\n}" }, "url": "{{baseUrl}}/admin/events" } },
+            { "name": "Update event", "request": { "method": "PUT", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"Festival Demo (editado)\",\n  \"start_date\": \"2030-12-02T21:00:00\",\n  \"description\": \"Nueva descripcion\"\n}" }, "url": "{{baseUrl}}/admin/events/{{eventId}}" } },
+            { "name": "Delete event", "request": { "method": "DELETE", "url": "{{baseUrl}}/admin/events/{{eventId}}" } },
+            { "name": "Add artist to event", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"artist_id\": {{artistId}}\n}" }, "url": "{{baseUrl}}/admin/events/{{eventId}}/artists" } },
+            { "name": "Remove artist from event", "request": { "method": "DELETE", "url": "{{baseUrl}}/admin/events/{{eventId}}/artists/{{artistIdInLineup}}" } },
+            { "name": "Confirm event", "request": { "method": "PUT", "url": "{{baseUrl}}/admin/events/{{eventId}}/confirmed", "description": "TP4: dispara notificaciones a usuarios con el evento favorito o con artistas seguidos en el lineup." } },
+            { "name": "Reschedule event", "request": { "method": "PUT", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"start_date\": \"2031-01-15T22:00:00\"\n}" }, "url": "{{baseUrl}}/admin/events/{{eventIdConfirmed}}/rescheduled", "description": "TP4: dispara notificaciones." } },
+            { "name": "Cancel event", "request": { "method": "PUT", "url": "{{baseUrl}}/admin/events/{{eventIdConfirmed}}/canceled", "description": "TP4: dispara notificaciones." } }
+          ]
         }
       ]
     },
     {
-      "name": "Events",
+      "name": "End-user endpoints (rol user)",
+      "auth": {
+        "type": "oauth2",
+        "oauth2": [
+          { "key": "grant_type", "value": "authorization_code", "type": "string" },
+          { "key": "callbackUrl", "value": "{{callbackUrl}}", "type": "string" },
+          { "key": "authUrl", "value": "{{keycloakAuthUrl}}", "type": "string" },
+          { "key": "accessTokenUrl", "value": "{{keycloakTokenUrl}}", "type": "string" },
+          { "key": "clientId", "value": "{{keycloakClientId}}", "type": "string" },
+          { "key": "clientSecret", "value": "{{keycloakClientSecret}}", "type": "string" },
+          { "key": "scope", "value": "openid", "type": "string" },
+          { "key": "client_authentication", "value": "body", "type": "string" }
+        ]
+      },
+      "description": "Para todos los requests autenticate como **tp4-user / tp4pass** (rol `user`).",
       "item": [
         {
-          "name": "Get Events (all)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": "{{baseUrl}}/admin/events",
-            "description": "`GET /admin/events` — `name`, `start_date`, `state`, `artist_count`"
-          }
+          "name": "Following (artistas seguidos)",
+          "item": [
+            { "name": "List following", "request": { "method": "GET", "url": "{{baseUrl}}/me/following", "description": "`GET /me/following` — artistas que sigue el usuario autenticado." } },
+            { "name": "Follow artist", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"artist_id\": {{followArtistId}}\n}" }, "url": "{{baseUrl}}/me/following", "description": "`POST /me/following` — **201**. `400` si el artista esta inactivo o ya es seguido. `404` si no existe." } },
+            { "name": "Unfollow artist", "request": { "method": "DELETE", "url": "{{baseUrl}}/me/following/{{followArtistId}}", "description": "`DELETE /me/following/{artistId}` — **204**." } },
+            { "name": "Upcoming events from followed artists", "request": { "method": "GET", "url": "{{baseUrl}}/me/following/events", "description": "`GET /me/following/events` — proximos eventos (`confirmed` o `rescheduled` con fecha futura) donde participa alguno de los artistas seguidos, ordenados por fecha." } }
+          ]
         },
         {
-          "name": "Get Events (filter state)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": "{{baseUrl}}/admin/events?state=tentative",
-            "description": "`GET /admin/events?state=` tentative | confirmed | rescheduled | cancelled"
-          }
+          "name": "Favorite events",
+          "item": [
+            { "name": "List favorite events", "request": { "method": "GET", "url": "{{baseUrl}}/me/favorite-events", "description": "`GET /me/favorite-events` — favoritos del usuario que aun esten vigentes." } },
+            { "name": "Add favorite event", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"event_id\": {{favoriteEventId}}\n}" }, "url": "{{baseUrl}}/me/favorite-events", "description": "`POST /me/favorite-events` — **201**. `400` si el evento es `tentative` o ya es favorito." } },
+            { "name": "Remove favorite event", "request": { "method": "DELETE", "url": "{{baseUrl}}/me/favorite-events/{{favoriteEventId}}", "description": "`DELETE /me/favorite-events/{eventId}` — **204**." } }
+          ]
         },
         {
-          "name": "Get Event by id",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": "{{baseUrl}}/admin/events/{{eventId}}",
-            "description": "`GET /admin/events/{id}` — detalle + `artists[]`"
-          }
-        },
-        {
-          "name": "Create Event",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Festival Demo\",\n  \"start_date\": \"2030-12-01T20:00:00\",\n  \"description\": \"Descripción del evento\"\n}"
-            },
-            "url": "{{baseUrl}}/admin/events",
-            "description": "`POST /admin/events` — **201**. Inicial **tentative**, sin artistas."
-          }
-        },
-        {
-          "name": "Update Event",
-          "request": {
-            "method": "PUT",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Festival Demo (editado)\",\n  \"start_date\": \"2030-12-02T21:00:00\",\n  \"description\": \"Nueva descripción\"\n}"
-            },
-            "url": "{{baseUrl}}/admin/events/{{eventId}}",
-            "description": "`PUT /admin/events/{id}` — Solo **tentative**. `eventId=1` en seed."
-          }
-        },
-        {
-          "name": "Delete Event",
-          "request": {
-            "method": "DELETE",
-            "header": [],
-            "url": "{{baseUrl}}/admin/events/{{eventId}}",
-            "description": "`DELETE /admin/events/{id}` — **204**. Solo **tentative**; borra el evento seed **1** si lo ejecutás."
-          }
-        },
-        {
-          "name": "Add Artist to Event",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"artist_id\": {{artistId}}\n}"
-            },
-            "url": "{{baseUrl}}/admin/events/{{eventId}}/artists",
-            "description": "`POST .../events/{id}/artists` — Body `artist_id`. Solo **tentative**. `artistId=2` no está en el evento 1 del seed."
-          }
-        },
-        {
-          "name": "Remove Artist from Event",
-          "request": {
-            "method": "DELETE",
-            "header": [],
-            "url": "{{baseUrl}}/admin/events/{{eventId}}/artists/{{artistIdInLineup}}",
-            "description": "`DELETE .../events/{id}/artists/{artistId}` — Solo **tentative**. Consigna original: `song_id`; en código es **artistId**."
-          }
-        },
-        {
-          "name": "Confirm Event",
-          "request": {
-            "method": "PUT",
-            "header": [],
-            "url": "{{baseUrl}}/admin/events/{{eventId}}/confirmed",
-            "description": "`PUT .../confirmed` — **Tentative** → confirmed; `start_date` **> ahora**."
-          }
-        },
-        {
-          "name": "Reschedule Event",
-          "request": {
-            "method": "PUT",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"start_date\": \"2031-01-15T22:00:00\"\n}"
-            },
-            "url": "{{baseUrl}}/admin/events/{{eventIdConfirmed}}/rescheduled",
-            "description": "`PUT .../rescheduled` — Body `start_date`. Solo **confirmed** o **rescheduled**. Ejemplo: evento seed **2** (confirmed)."
-          }
-        },
-        {
-          "name": "Cancel Event",
-          "request": {
-            "method": "PUT",
-            "header": [],
-            "url": "{{baseUrl}}/admin/events/{{eventIdConfirmed}}/canceled",
-            "description": "`PUT .../canceled` — Solo **confirmed** o **rescheduled** → cancelled. Ejemplo: evento **2**."
-          }
+          "name": "Notifications",
+          "item": [
+            { "name": "List notifications", "request": { "method": "GET", "url": "{{baseUrl}}/me/notifications", "description": "`GET /me/notifications` — lista todas las notificaciones del usuario." } },
+            { "name": "List unread notifications", "request": { "method": "GET", "url": "{{baseUrl}}/me/notifications?unread_only=true", "description": "Filtra solo las que no fueron marcadas como leidas." } },
+            { "name": "Mark notification as read", "request": { "method": "PUT", "url": "{{baseUrl}}/me/notifications/{{notificationId}}/read" } }
+          ]
         }
       ]
     }

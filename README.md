@@ -1,8 +1,12 @@
 # Greater Events — API REST (Spring Boot)
 
-Backend **REST** para gestionar una comunidad vinculada a **eventos musicales** y **artistas**: relación **muchos a muchos**, reglas de ciclo de vida del evento y de alta/baja de artistas. Toda la API pública del servicio vive bajo el prefijo **`/admin/`** y requiere OAuth2 Bearer Token emitido por Keycloak.
+Backend **REST** para una comunidad vinculada a **eventos musicales** y **artistas**, con perfil **administrador** (backoffice) y **usuario final** (catálogo público, follow de artistas, favoritos de eventos y notificaciones). La API tiene tres niveles de acceso:
 
-Este documento está redactado como **documentación de producto / proyecto de software** (qué hace el sistema, cómo está armado, cómo ejecutarlo y qué conviene versionar). Si participás de un proceso de evaluación formal, al final hay un **checklist de contenidos del repositorio** que suele pedirse al cerrar una entrega; las reglas concretas de plataforma o nombres de repo las define cada organización.
+- **Público** (sin token): catálogo de artistas y eventos vigentes, registro de usuarios.
+- **Admin** (`/admin/**`, rol `admin`): backoffice de TP2 + gestión de usuarios admin (Keycloak).
+- **Usuario final** (`/me/**`, rol `user`): seguir/dejar de seguir artistas, marcar favoritos, notificaciones.
+
+Autenticación delegada a **Keycloak** (OAuth2 Resource Server, JWT). Roles parseados desde el claim `realm_access.roles`.
 
 **Participantes:** Mateo Hernandez y Felipe Lucero.
 
@@ -10,7 +14,7 @@ Este documento está redactado como **documentación de producto / proyecto de s
 
 ## TL;DR — Para el profesor evaluador (5 minutos)
 
-Todas las credenciales locales necesarias ya vienen seteadas en el repo (son **dev only**, no son secretos reales) para que el evaluador no tenga que buscarlas:
+Todas las credenciales locales ya vienen seteadas en el repo (son **dev only**) para que el evaluador no tenga que buscarlas:
 
 | Recurso                | Valor                                          |
 | ---------------------- | ---------------------------------------------- |
@@ -19,7 +23,9 @@ Todas las credenciales locales necesarias ya vienen seteadas en el repo (son **d
 | Realm                  | `unnoba`                                       |
 | Client ID              | `pdyc`                                         |
 | Client secret          | `pdyc-secret-dev`                              |
-| Usuario de prueba      | `tp3-user` / `tp3pass`                         |
+| Realm roles            | `admin`, `user`                                |
+| Usuario admin de prueba| `tp3-user` / `tp3pass` (rol `admin`)           |
+| Usuario final de prueba| `tp4-user` / `tp4pass` (rol `user`)            |
 | Backend Spring Boot    | `http://localhost:8081`                        |
 | MySQL (perfil default) | `localhost:3306`, db `pdyc2026`, root/insecure |
 
@@ -33,24 +39,106 @@ docker compose up -d
 curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/realms/master/.well-known/openid-configuration
 # tiene que devolver 200
 
-# 3) Crear realm `unnoba`, client `pdyc`, secret, roles y usuario tp3-user (idempotente)
+# 3) Crear realm `unnoba`, client `pdyc`, secret, roles admin/user, usuarios tp3-user y tp4-user (idempotente)
 bash keycloak/setup-realm.sh        # PowerShell: .\keycloak\setup-realm.ps1
 
 # 4) Arrancar el backend (puerto 8081)
 export KEYCLOAK_CLIENT_SECRET="pdyc-secret-dev"   # PowerShell: $env:KEYCLOAK_CLIENT_SECRET="pdyc-secret-dev"
-./mvnw spring-boot:run -Dspring-boot.run.profiles=local   # `local` usa H2 en memoria; sin `-Dspring-boot.run.profiles=local` usa MySQL
+./mvnw spring-boot:run -Dspring-boot.run.profiles=local   # `local` usa H2 en memoria; sin esa flag usa MySQL
 
-# 5) Probar en Postman
-# 5.1) Import: API/Greater-Events.postman_collection.json y API/Greater-Events-Local.postman_environment.json
-# 5.2) Elegir el environment "Greater Events — Local" (ya trae secret, baseUrl, etc.)
-# 5.3) En la collection -> Authorization -> Get New Access Token
-#      Postman abre el flujo Authorization Code: ingresar tp3-user / tp3pass -> Use Token
-# 5.4) Probar las requests: Artists, Events, Admin Users (Keycloak)
+# 5) Smoke tests publicos (sin token, deben responder 200 con JSON)
+curl -s http://localhost:8081/artists | head -c 300; echo
+curl -s http://localhost:8081/events  | head -c 300; echo
+
+# 6) Probar en Postman
+# 6.1) Importar API/Greater-Events.postman_collection.json y API/Greater-Events-Local.postman_environment.json
+# 6.2) Elegir el environment "Greater Events - Local" (ya trae secret, baseUrl, credenciales).
+# 6.3) Carpeta "Public endpoints": no requieren token (incluye POST /auth/register).
+# 6.4) Carpeta "Admin endpoints":  pestana Authorization -> Get New Access Token -> login tp3-user/tp3pass.
+# 6.5) Carpeta "End-user endpoints": idem pero login tp4-user/tp4pass.
 ```
 
-Hay una guía expandida con todos los detalles en la sección [0.1](#01-cómo-probar-el-tp3-de-punta-a-punta).
+> Guía expandida en la sección [0.1](#01-cómo-probar-el-tp3-de-punta-a-punta). TP4 documentado en la sección [00](#00-tp4--usuarios-finales-roles-publico-y-notificaciones).
+>
+> **Nota de seguridad:** `pdyc-secret-dev`, `tp3pass` y `tp4pass` son valores de desarrollo locales para que esta entrega sea reproducible. En ambientes reales se rotan, se inyectan por variables de entorno y nunca se commitean.
 
-> **Nota de seguridad:** el `client secret` `pdyc-secret-dev` y la contraseña `tp3pass` solo existen para que esta entrega sea reproducible localmente. En cualquier ambiente real (staging / prod) se rotan, se inyectan por variables de entorno y nunca se commitean al repo.
+---
+
+## 00. TP4 — Usuarios finales, roles, público y notificaciones
+
+Esta sección documenta los cambios que introduce la **Práctica 4** sobre la base del TP3.
+
+### 00.1 Conceptos aplicados
+
+- **Roles de realm en Keycloak:** dos roles nuevos en el realm `unnoba`:
+  - `admin`: necesario para consumir cualquier endpoint `/admin/**` (backoffice).
+  - `user`:  necesario para consumir cualquier endpoint `/me/**` (acciones de usuario final).
+  - Los roles se asignan a usuarios en Keycloak. El script `keycloak/setup-realm.sh` los crea, asigna `admin` a `tp3-user` y crea `tp4-user` con rol `user`. Si crear un admin por `POST /admin/users`, el backend le asigna automáticamente el rol `admin`. Si crear un usuario final por `POST /auth/register`, se le asigna automáticamente `user`.
+- **AuthenticationConverter:** clase `KeycloakJwtAuthenticationConverter` (config) que extrae el claim `realm_access.roles` del JWT y lo expone como `GrantedAuthority` prefijado con `ROLE_`, así Spring entiende `hasRole("admin")` y `hasRole("user")`. El `name` del principal es el `sub` (UUID estable de Keycloak), independiente del username.
+- **SecurityFilterChain con tres niveles** (en este orden):
+  1. **Públicos:** `POST /auth/register`, `GET /artists`, `GET /artists/{id}/events`, `GET /events`, `GET /events/{id}`, `/error`.
+  2. **Admin:** `/admin/**` requiere `hasRole("admin")`.
+  3. **Usuario final autenticado:** `/me/**` requiere `hasRole("user")`.
+  4. Cualquier otro request requiere autenticación (default deny por seguridad).
+- **Entidad local `User`** con `username` y `email` únicos, `keycloakId` (UUID), `createdAt`, más dos colecciones `@ManyToMany`: `followingArtists` (tabla intermedia `user_following_artists`) y `favoriteEvents` (`user_favorite_events`). El `keycloakId` es la fuente de verdad para asociar el JWT entrante con un usuario local; el `CurrentUserService` aprovisiona la fila local automáticamente la primera vez que un JWT válido golpea `/me/**` (defensa en profundidad).
+- **Catálogo público:** `PublicCatalogService` solo devuelve artistas con `active=true` y eventos en estado `CONFIRMED` o `RESCHEDULED` con `start_date > now`. El detalle público de un evento que esté en estado `TENTATIVE` responde `404` para cumplir la consigna.
+- **Notificaciones:** implementadas con un **event de dominio asincrónico**:
+  - `EventService` publica `EventStateChangedEvent(eventId, newState)` cuando un evento pasa a `CONFIRMED`, `RESCHEDULED` o `CANCELLED`.
+  - `NotificationService` está marcado con `@Async("notificationExecutor")` + `@EventListener` y, en un `ThreadPoolTaskExecutor` dedicado, genera una `Notification` por cada usuario que tenga el evento como favorito o que siga a alguno de los artistas del lineup (si calza por ambas razones, se prioriza `FAVORITE_EVENT`).
+  - Los usuarios consultan sus notificaciones con `GET /me/notifications` (o `?unread_only=true`) y marcan como leídas con `PUT /me/notifications/{id}/read`.
+
+### 00.2 Endpoints nuevos (TP4)
+
+| Método y ruta                          | Acceso       | Descripción                                                                                                |
+| -------------------------------------- | ------------ | ---------------------------------------------------------------------------------------------------------- |
+| `POST /auth/register`                  | Público      | Registra usuario en Keycloak (rol `user`) y en la DB local. `201` con `id`, `keycloak_id`, `username`, `email`. |
+| `GET  /artists`                        | Público      | Lista artistas activos, ordenados por nombre.                                                              |
+| `GET  /artists/{artistId}/events`      | Público      | Próximos eventos del artista (`confirmed` o `rescheduled`, futuros). `404` si el artista no existe / inactivo. |
+| `GET  /events`                         | Público      | Eventos vigentes ordenados por proximidad de fecha. Nunca devuelve `tentative`.                            |
+| `GET  /events/{id}`                    | Público      | Detalle público. `404` si el evento está en `tentative`.                                                   |
+| `GET  /me/following`                   | Rol `user`   | Artistas seguidos por el usuario autenticado.                                                              |
+| `POST /me/following`                   | Rol `user`   | Body `{"artist_id": N}`. `201` al seguir. `400` si ya lo seguía / artista inactivo. `404` si no existe.    |
+| `DELETE /me/following/{artistId}`      | Rol `user`   | `204` al dejar de seguir. `404` si no era seguido.                                                         |
+| `GET  /me/following/events`            | Rol `user`   | Próximos eventos donde participa alguno de los artistas seguidos, ordenados por fecha.                     |
+| `GET  /me/favorite-events`             | Rol `user`   | Favoritos vigentes (`confirmed`/`rescheduled` futuros).                                                    |
+| `POST /me/favorite-events`             | Rol `user`   | Body `{"event_id": N}`. `400` si el evento es `tentative` o ya era favorito.                               |
+| `DELETE /me/favorite-events/{eventId}` | Rol `user`   | `204` al desmarcar. `404` si no era favorito.                                                              |
+| `GET  /me/notifications`               | Rol `user`   | Lista las notificaciones del usuario. Soporta query `unread_only=true`.                                    |
+| `PUT  /me/notifications/{id}/read`     | Rol `user`   | Marca la notificación como leída.                                                                          |
+| `POST /admin/users` (cambio TP4)       | Rol `admin`  | Sigue funcionando como en TP3 pero ahora **asigna automáticamente el rol `admin`** al usuario creado.      |
+
+### 00.3 Cómo probar el TP4 end-to-end
+
+```bash
+# 0) Levantar stack y configurar realm (idempotente)
+docker compose up -d
+bash keycloak/setup-realm.sh
+export KEYCLOAK_CLIENT_SECRET="pdyc-secret-dev"
+./mvnw spring-boot:run
+
+# 1) Catalogo publico, sin token
+curl -s http://localhost:8081/artists | head -c 400; echo
+curl -s http://localhost:8081/events  | head -c 400; echo
+
+# 2) Registro publico de un usuario final
+curl -s -X POST http://localhost:8081/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"jperez","email":"jperez@example.com","password":"Secret123!","first_name":"Juan","last_name":"Perez"}'
+
+# 3) Probar /me/** desde Postman:
+#    - Importar coleccion + environment de API/, elegir "Greater Events - Local".
+#    - Folder "End-user endpoints" -> Authorization -> Get New Access Token -> login con tp4-user / tp4pass.
+#    - POST /me/following  body {"artist_id": 1}
+#    - POST /me/favorite-events body {"event_id": 2}
+#    - GET  /me/following, /me/favorite-events, /me/following/events
+
+# 4) Disparar notificaciones (desde "Admin endpoints" como tp3-user)
+#    - PUT /admin/events/2/rescheduled body {"start_date":"2030-01-15T22:00:00"}
+#    - PUT /admin/events/2/canceled
+
+# 5) Volver al folder "End-user endpoints" y leer:
+#    - GET /me/notifications  -> aparecen las notificaciones generadas async.
+```
 
 ---
 
@@ -277,17 +365,20 @@ docker compose down -v         # además borra los volúmenes (datos de MySQL y 
 
 ## 2. Qué está implementado en este repositorio
 
-| Área               | Contenido                                                                                                                                                                                                                                                                                         |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| API                | Endpoints REST bajo `/admin/artists`, `/admin/events` y `/admin/users` según la especificación funcional (ver tabla más abajo).                                                                                                                                                                   |
-| Seguridad TP3      | Spring Security OAuth2 Resource Server con JWT support contra Keycloak realm `unnoba`; todos los endpoints requieren token válido.                                                                                                                                                                |
-| Keycloak Admin     | El backend usa `keycloak-admin-client` con Client Credentials para crear, obtener, listar y eliminar usuarios administradores en Keycloak.                                                                                                                                                        |
-| Corrección de ruta | La especificación original citaba `DELETE .../artist/:song_id`; en este código el recurso coherente es **`DELETE /admin/events/{id}/artists/{artistId}`**.                                                                                                                                        |
-| Capas              | Repositorios Spring Data, servicios `@Service`, controladores `@RestController`, DTOs con **Java records** y validación Jakarta.                                                                                                                                                                  |
-| Errores HTTP       | `ApiExceptionHandler` mapea reglas de negocio a **400** y no encontrado a **404**. `JsonAuthEntryPoint` y `JsonAccessDeniedHandler` mapean **401** y **403** del Resource Server. Todos devuelven el mismo formato `{"error":"mensaje"}`.                                                         |
-| Datos demo         | `SampleDataLoader` (solo si no hay artistas al arrancar; desactivado con perfil `test`).                                                                                                                                                                                                          |
-| Herramientas       | Maven Wrapper (`mvnw`), `docker-compose.yml` con MySQL + Keycloak, scripts `keycloak/setup-realm.sh` y `keycloak/setup-realm.ps1` para configurar el realm `unnoba` automáticamente vía Admin REST API, script opcional `dev-support/start-mysql.ps1` (Windows), colección Postman en **`API/`**. |
-| Perfil opcional    | **`local`**: H2 en memoria para ejecutar sin MySQL (`application-local.properties`).                                                                                                                                                                                                              |
+| Área                  | Contenido                                                                                                                                                                                                                                                                                         |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| API admin (TP2/TP3)   | Endpoints REST bajo `/admin/artists`, `/admin/events` y `/admin/users`. Reglas de ciclo de vida del evento y gestión de artistas.                                                                                                                                                                |
+| API pública (TP4)     | `GET /artists`, `GET /artists/{id}/events`, `GET /events`, `GET /events/{id}`, `POST /auth/register`. Nunca exponen eventos `tentative`.                                                                                                                                                          |
+| API usuario final (TP4)| Endpoints `/me/following`, `/me/favorite-events`, `/me/following/events`, `/me/notifications` con autoprovisioning del `User` local desde el JWT.                                                                                                                                                |
+| Seguridad             | Spring Security OAuth2 Resource Server con JWT. `KeycloakJwtAuthenticationConverter` parsea `realm_access.roles`. Filter chain con tres niveles: público / `hasRole("admin")` / `hasRole("user")`.                                                                                                |
+| Keycloak Admin        | `keycloak-admin-client` con Client Credentials para CRUD de usuarios admin y registro de usuarios finales. `KeycloakRoleService` asigna realm roles (`admin`, `user`) en cada creación.                                                                                                            |
+| Notificaciones (TP4)  | Entidad `Notification` + `ApplicationEventPublisher`. `EventService` publica `EventStateChangedEvent`; `NotificationService` lo consume con `@Async("notificationExecutor")` y crea una notificación por usuario que tenga el evento favorito o un artista seguido en el lineup.                  |
+| Corrección de ruta    | La especificación original del TP2 citaba `DELETE .../artist/:song_id`; el recurso coherente es **`DELETE /admin/events/{id}/artists/{artistId}`**.                                                                                                                                              |
+| Capas                 | Repositorios Spring Data, servicios `@Service`, controladores `@RestController`, DTOs con **Java records** y validación Jakarta.                                                                                                                                                                  |
+| Errores HTTP          | `ApiExceptionHandler` mapea reglas de negocio a **400**, no encontrado a **404**, conflicto único a **409** (username/email). `JsonAuthEntryPoint` y `JsonAccessDeniedHandler` mapean **401** y **403**. Todos devuelven `{"error":"mensaje"}`.                                                    |
+| Datos demo            | `SampleDataLoader` (solo si no hay artistas al arrancar; desactivado con perfil `test`).                                                                                                                                                                                                          |
+| Herramientas          | Maven Wrapper (`mvnw`), `docker-compose.yml` con MySQL + Keycloak, scripts `keycloak/setup-realm.sh`/`.ps1` (crean realm + client + roles `admin`/`user` + usuarios `tp3-user`/`tp4-user`), `dev-support/start-mysql.ps1` (Windows), colección Postman en **`API/`**.                              |
+| Perfil opcional       | **`local`**: H2 en memoria para ejecutar sin MySQL (`application-local.properties`).                                                                                                                                                                                                              |
 
 ---
 
@@ -295,39 +386,55 @@ docker compose down -v         # además borra los volúmenes (datos de MySQL y 
 
 ### Paquete `...events.model`
 
-| Clase / tipo                  | Rol                                                                                                                                   |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| **`Artist`**                  | Entidad JPA: `name`, `genre` (enum), `active`.                                                                                        |
-| **`Event`**                   | Entidad JPA: `name`, `description`, `startDate`, `state`, relación **`@ManyToMany`** con `Artist` (tabla intermedia `event_artists`). |
-| **`Genre`**, **`EventState`** | Enumeraciones persistidas como string; exponen valores en **minúsculas** en JSON y aceptan el mismo formato en query/body.            |
+| Clase / tipo                                  | Rol                                                                                                                                                                                |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`Artist`**                                  | Entidad JPA: `name`, `genre` (enum), `active`.                                                                                                                                     |
+| **`Event`**                                   | Entidad JPA: `name`, `description`, `startDate`, `state`, relación **`@ManyToMany`** con `Artist` (tabla intermedia `event_artists`).                                              |
+| **`User`** (TP4)                              | Entidad JPA: `username` (único), `email` (único), `keycloakId` (UUID), `createdAt`. Dos `@ManyToMany`: `followingArtists` (`user_following_artists`), `favoriteEvents` (`user_favorite_events`). |
+| **`Notification`** (TP4)                      | Entidad JPA: pertenece a `User`, referencia a `Event`, `reason` (`FAVORITE_EVENT`/`FOLLOWED_ARTIST`), `newState`, `message`, `createdAt`, `read`.                                  |
+| **`Genre`**, **`EventState`**, **`NotificationReason`** | Enumeraciones persistidas como string; los dos primeros exponen valores en **minúsculas** en JSON y aceptan el mismo formato en query/body.                              |
 
 ### Paquete `...repository`
 
-Interfaces **Spring Data JPA** (`ArtistRepository`, `EventRepository`): consultas por género/estado, carga de eventos con artistas para listados y detalle, y comprobaciones usadas por reglas de negocio (por ejemplo si un artista ya figura en algún evento).
+Interfaces **Spring Data JPA** (`ArtistRepository`, `EventRepository`, `UserRepository`, `NotificationRepository`): consultas por género/estado, listados públicos de eventos vigentes, próximos eventos por artista o por colección de artist ids, lookup por `keycloakId`, notificaciones del usuario (todas o solo no leídas), y comprobaciones de reglas de negocio.
 
 ### Paquete `...service`
 
-| Servicio            | Comportamiento                                                                                                                                                                                                                                                                                          |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`ArtistService`** | Listado con filtro opcional de género; alta; actualización solo si el artista **no** tiene eventos; borrado físico si no tiene historial, si no **desactivación**.                                                                                                                                      |
-| **`EventService`**  | Listados con filtro de estado; detalle; CRUD de evento acotado al estado **tentative**; alta/baja de artistas en grilla solo en **tentative**; transiciones **confirm / reschedule / cancel** con todas las validaciones de fechas y estados; usa **`Clock`** inyectado para fechas “ahora” testeables. |
+| Servicio                          | Comportamiento                                                                                                                                                                                                                                                                                          |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`ArtistService`**               | Listado con filtro opcional de género; alta; actualización solo si el artista **no** tiene eventos; borrado físico si no tiene historial, si no **desactivación**.                                                                                                                                      |
+| **`EventService`**                | CRUD de evento acotado al estado **tentative**; transiciones **confirm / reschedule / cancel** con validaciones de fechas. **TP4:** publica `EventStateChangedEvent` después de cada transición.                                                                                                       |
+| **`AdminUserService`** (TP3/TP4)  | CRUD de usuarios admin en Keycloak via admin client. **TP4:** al crear, asigna el realm role `admin`.                                                                                                                                                                                                  |
+| **`AuthService`** (TP4)           | `POST /auth/register`: crea el usuario en Keycloak, le asigna el rol `user` y persiste la fila en `users`. Hace rollback en Keycloak si falla la persistencia local.                                                                                                                                   |
+| **`KeycloakRoleService`** (TP4)   | Servicio compartido por `AdminUserService` y `AuthService` para asignar realm roles vía admin client.                                                                                                                                                                                                  |
+| **`CurrentUserService`** (TP4)    | Resuelve el `User` local a partir del JWT del request actual. Si no existe, lo provisiona leyendo `sub`, `preferred_username` y `email`.                                                                                                                                                               |
+| **`EndUserService`** (TP4)        | Lógica de follow/unfollow de artistas, favoritos de eventos y listados derivados (`/me/following*`, `/me/favorite-events`).                                                                                                                                                                            |
+| **`PublicCatalogService`** (TP4)  | Catálogo público: solo artistas activos y eventos `CONFIRMED`/`RESCHEDULED` con fecha futura. Nunca expone `TENTATIVE`.                                                                                                                                                                                |
+| **`NotificationService`** (TP4)   | `@Async` `@EventListener` que crea notificaciones cuando un evento cambia de estado. También expone la lectura/marcado para `/me/notifications`.                                                                                                                                                       |
 
 ### Paquete `...web`
 
 | Componente                                                      | Rol                                                                                                                                                                      |
 | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **`ArtistAdminController`**, **`EventAdminController`**         | Mapean verbos HTTP y rutas `/admin/...`; códigos **201** en POST de creación, **204** en DELETE de evento; `DELETE` de artista devuelve **200** o **204** según el caso. |
-| **`AdminUserController`**                                       | Expone `/admin/users` y delega en Keycloak Admin API para gestionar usuarios administradores.                                                                            |
+| **`ArtistAdminController`**, **`EventAdminController`**         | Backoffice TP2/TP3 bajo `/admin/...`.                                                                                                                                    |
+| **`AdminUserController`**                                       | `/admin/users` (Keycloak).                                                                                                                                               |
+| **`AuthController`** (TP4)                                      | `/auth/register` (público).                                                                                                                                              |
+| **`PublicArtistController`**, **`PublicEventController`** (TP4) | Catálogo público `/artists/**`, `/events/**`.                                                                                                                            |
+| **`MeFollowingController`**, **`MeFavoriteEventsController`**, **`MeNotificationsController`** (TP4) | Endpoints `/me/**` para usuarios finales autenticados.                                                                                |
 | **`StringToGenreConverter`**, **`StringToEventStateConverter`** | Conversión de query params (`genre`, `state`) a enums.                                                                                                                   |
-| **`ApiExceptionHandler`**                                       | `@RestControllerAdvice` centraliza respuestas de error.                                                                                                                  |
+| **`ApiExceptionHandler`**                                       | `@RestControllerAdvice` centraliza respuestas de error (incluye **409** para conflictos de unicidad).                                                                    |
 
 ### Paquete `...dto`
 
-**Records** inmutables para cuerpos y respuestas JSON (`ArtistCreateRequest`, `EventDetailResponse`, `AdminUserCreateRequest`, etc.), con nombres en **`snake_case`** donde aplica (`start_date`, `artist_id`, `first_name`, …) para alinear con la especificación de la API.
+**Records** inmutables con nombres en **`snake_case`** en JSON. TP4 agrega `RegisterUserRequest`/`RegisterUserResponse`, `FollowArtistRequest`, `FavoriteEventRequest` y `NotificationResponse`.
+
+### Paquete `...event` (TP4)
+
+**`EventStateChangedEvent`**: record publicado por `EventService` cuando un evento cambia de estado. Lo consume el `NotificationService` de forma asincrónica.
 
 ### Paquete `...config`
 
-**`ClockConfig`**: bean `Clock` del sistema. **`SecurityConfig`**: Resource Server JWT, `JwtDecoder`, cliente admin de Keycloak y executor para llamadas bloqueantes al admin client; conecta los handlers de error JSON. **`JsonAuthEntryPoint`** y **`JsonAccessDeniedHandler`**: traducen 401/403 a `{"error":"..."}`. **`SampleDataLoader`**: datos iniciales si la BD está vacía.
+**`ClockConfig`**: bean `Clock` del sistema. **`SecurityConfig`** (TP3 + TP4): filter chain con tres niveles (público/admin/user), `JwtDecoder`, cliente admin de Keycloak y dos executors (`keycloakExecutor` para admin client, `notificationExecutor` para listeners async); habilita `@EnableAsync`. **`KeycloakJwtAuthenticationConverter`** (TP4): parsea `realm_access.roles` y los expone como `ROLE_admin`/`ROLE_user`. **`JsonAuthEntryPoint`** y **`JsonAccessDeniedHandler`**: traducen 401/403 a `{"error":"..."}`. **`SampleDataLoader`**: datos iniciales.
 
 ### Paquete `...exception`
 
@@ -337,31 +444,45 @@ Interfaces **Spring Data JPA** (`ArtistRepository`, `EventRepository`): consulta
 
 ## 4. Referencia de endpoints
 
-| Método y ruta                                  | Descripción breve                                                                                                                                   |
-| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /admin/artists`                           | Lista artistas; query opcional `genre`.                                                                                                             |
-| `GET /admin/artists/{id}`                      | Detalle de un artista.                                                                                                                              |
-| `POST /admin/artists`                          | Crea artista (body: `name`, `genre`).                                                                                                               |
-| `PUT /admin/artists/{id}`                      | Actualiza nombre y género (solo sin historial en eventos).                                                                                          |
-| `DELETE /admin/artists/{id}`                   | Borra o desactiva según historial.                                                                                                                  |
-| `GET /admin/events`                            | Lista resumida; query opcional `state`.                                                                                                             |
-| `GET /admin/events/{id}`                       | Detalle con artistas.                                                                                                                               |
-| `POST /admin/events`                           | Crea evento tentative sin artistas (`name`, `start_date`, `description`).                                                                           |
-| `PUT /admin/events/{id}`                       | Actualiza datos solo si **tentative**.                                                                                                              |
-| `DELETE /admin/events/{id}`                    | Borra solo si **tentative**.                                                                                                                        |
-| `POST /admin/events/{id}/artists`              | Body `artist_id`; solo **tentative**; artista activo.                                                                                               |
-| `DELETE /admin/events/{id}/artists/{artistId}` | Quita de la grilla; solo **tentative**.                                                                                                             |
-| `PUT /admin/events/{id}/confirmed`             | Confirma desde **tentative**.                                                                                                                       |
-| `PUT /admin/events/{id}/rescheduled`           | Body `start_date`; reprograma **confirmed** o **rescheduled**.                                                                                      |
-| `PUT /admin/events/{id}/canceled`              | Cancela **confirmed** o **rescheduled**.                                                                                                            |
-| `GET /admin/users`                             | Lista usuarios administradores desde Keycloak.                                                                                                      |
-| `GET /admin/users/{id}`                        | Obtiene un usuario administrador por UUID de Keycloak.                                                                                              |
-| `POST /admin/users`                            | Crea un usuario administrador en Keycloak (`username`, `password`, opcionales `email`, `first_name`, `last_name`, `enabled`, `temporary_password`). |
-| `DELETE /admin/users/{id}`                     | Elimina un usuario administrador en Keycloak.                                                                                                       |
+| Método y ruta                                  | Acceso              | Descripción breve                                                                                                                                   |
+| ---------------------------------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /auth/register`                          | Público             | TP4. Registra usuario final (`username`, `email`, `password`, `first_name`, `last_name`). `201`, `409` si duplicado.                                |
+| `GET /artists`                                 | Público             | TP4. Lista artistas con `active=true`.                                                                                                              |
+| `GET /artists/{artistId}/events`               | Público             | TP4. Próximos eventos `confirmed`/`rescheduled` del artista.                                                                                        |
+| `GET /events`                                  | Público             | TP4. Eventos vigentes ordenados por fecha. Nunca incluye `tentative`.                                                                               |
+| `GET /events/{id}`                             | Público             | TP4. Detalle público. `404` si el evento es `tentative`.                                                                                            |
+| `GET /admin/artists`                           | Admin (rol `admin`) | Lista artistas; query opcional `genre`.                                                                                                             |
+| `GET /admin/artists/{id}`                      | Admin               | Detalle de un artista.                                                                                                                              |
+| `POST /admin/artists`                          | Admin               | Crea artista (body: `name`, `genre`).                                                                                                               |
+| `PUT /admin/artists/{id}`                      | Admin               | Actualiza nombre y género (solo sin historial en eventos).                                                                                          |
+| `DELETE /admin/artists/{id}`                   | Admin               | Borra o desactiva según historial.                                                                                                                  |
+| `GET /admin/events`                            | Admin               | Lista resumida; query opcional `state`.                                                                                                             |
+| `GET /admin/events/{id}`                       | Admin               | Detalle con artistas.                                                                                                                               |
+| `POST /admin/events`                           | Admin               | Crea evento tentative sin artistas (`name`, `start_date`, `description`).                                                                           |
+| `PUT /admin/events/{id}`                       | Admin               | Actualiza datos solo si **tentative**.                                                                                                              |
+| `DELETE /admin/events/{id}`                    | Admin               | Borra solo si **tentative**.                                                                                                                        |
+| `POST /admin/events/{id}/artists`              | Admin               | Body `artist_id`; solo **tentative**; artista activo.                                                                                               |
+| `DELETE /admin/events/{id}/artists/{artistId}` | Admin               | Quita de la grilla; solo **tentative**.                                                                                                             |
+| `PUT /admin/events/{id}/confirmed`             | Admin               | Confirma desde **tentative**. **TP4:** dispara notificaciones async.                                                                                |
+| `PUT /admin/events/{id}/rescheduled`           | Admin               | Body `start_date`; reprograma. **TP4:** dispara notificaciones async.                                                                               |
+| `PUT /admin/events/{id}/canceled`              | Admin               | Cancela. **TP4:** dispara notificaciones async.                                                                                                     |
+| `GET /admin/users`                             | Admin               | Lista usuarios administradores desde Keycloak.                                                                                                      |
+| `GET /admin/users/{id}`                        | Admin               | Obtiene un usuario admin por UUID.                                                                                                                  |
+| `POST /admin/users`                            | Admin               | Crea usuario admin. **TP4:** además asigna automáticamente el rol `admin`.                                                                          |
+| `DELETE /admin/users/{id}`                     | Admin               | Elimina un usuario admin.                                                                                                                           |
+| `GET /me/following`                            | User (rol `user`)   | TP4. Artistas que sigue el usuario autenticado.                                                                                                     |
+| `POST /me/following`                           | User                | TP4. Body `{"artist_id":N}`.                                                                                                                        |
+| `DELETE /me/following/{artistId}`              | User                | TP4. Deja de seguir.                                                                                                                                |
+| `GET /me/following/events`                     | User                | TP4. Próximos eventos de artistas seguidos.                                                                                                         |
+| `GET /me/favorite-events`                      | User                | TP4. Favoritos vigentes.                                                                                                                            |
+| `POST /me/favorite-events`                     | User                | TP4. Body `{"event_id":N}`. `400` si el evento es `tentative` o ya es favorito.                                                                     |
+| `DELETE /me/favorite-events/{eventId}`         | User                | TP4. Quita de favoritos.                                                                                                                            |
+| `GET /me/notifications`                        | User                | TP4. Lista notificaciones (`unread_only=true` opcional).                                                                                            |
+| `PUT /me/notifications/{id}/read`              | User                | TP4. Marca una notificación como leída.                                                                                                             |
 
 **Media type:** JSON `application/json` en cuerpos de entrada y respuestas.
 
-**Autenticación:** todos los endpoints requieren `Authorization: Bearer <access_token>`.
+**Autenticación:** los endpoints públicos no requieren token. Los demás esperan `Authorization: Bearer <access_token>` con el rol indicado en la columna "Acceso".
 
 ---
 
@@ -597,7 +718,8 @@ Deberías ver JSON (lista de artistas, eventos o usuarios). Sin token válido, S
 | `Port 8081 was already in use`                                         | Paso 4: liberar puerto o cambiar `server.port`.                                                                                                                 |
 | `401 Unauthorized` `{"error":"Unauthorized: Full authentication ..."}` | No mandaste header `Authorization: Bearer ...`. Obtené un token nuevo desde Postman (Get New Access Token + Use Token).                                         |
 | `401 Unauthorized` `{"error":"Unauthorized: ... decode the Jwt ..."}`  | El token está malformado, expiró o fue emitido por otro realm/issuer. Obtené uno nuevo.                                                                         |
-| `403 Forbidden` `{"error":"Forbidden: ..."}`                           | El usuario está autenticado pero no tiene permiso para el recurso (en este TP no usamos roles, así que normalmente no aparece).                                 |
+| `403 Forbidden` `{"error":"Forbidden: ..."}`                           | TP4: el JWT es válido pero el usuario no tiene el rol requerido (`admin` para `/admin/**`, `user` para `/me/**`). Reasignar rol en Keycloak o usar otra cuenta. |
+| `409 Conflict` `{"error":"Username is already registered."}`           | TP4: el `username` o `email` enviado a `POST /auth/register` ya existe. Elegir otro o borrar el usuario en Keycloak + DB local.                                 |
 | `JwtDecoder` / `issuer-uri` falla al arrancar                          | Keycloak debe estar levantado y el realm `unnoba` creado antes de iniciar el backend.                                                                           |
 | `/admin/users` devuelve error de Keycloak                              | Revisá `KEYCLOAK_CLIENT_SECRET`, que el client `pdyc` tenga `Service account roles`, y que el service account tenga `manage-users`.                             |
 | `mvn: command not found`                                               | Usar `./mvnw` o `mvnw.cmd`.                                                                                                                                     |

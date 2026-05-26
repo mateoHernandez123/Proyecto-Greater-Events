@@ -8,4 +8,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface ArtistRepository extends JpaRepository<Artist, Long> {
 
     List<Artist> findAllByGenre(Genre genre);
+
+    List<Artist> findAllByActiveTrue();
 }
