@@ -24,14 +24,17 @@ public class AdminUserService {
     private final Keycloak keycloak;
     private final String realm;
     private final Executor keycloakExecutor;
+    private final KeycloakRoleService roleService;
 
     public AdminUserService(
             Keycloak keycloak,
             KeycloakAdminProperties properties,
-            @Qualifier("keycloakExecutor") Executor keycloakExecutor) {
+            @Qualifier("keycloakExecutor") Executor keycloakExecutor,
+            KeycloakRoleService roleService) {
         this.keycloak = keycloak;
         this.realm = properties.realm();
         this.keycloakExecutor = keycloakExecutor;
+        this.roleService = roleService;
     }
 
     public CompletableFuture<List<AdminUserResponse>> listUsers() {
@@ -68,6 +71,7 @@ public class AdminUserService {
         user.setEnabled(request.enabled() == null || request.enabled());
         user.setCredentials(List.of(passwordCredential(request)));
 
+        String createdId;
         try (Response response = usersResource().create(user)) {
             if (response.getStatus() == Response.Status.CONFLICT.getStatusCode()) {
                 throw new BusinessRuleException("Admin user already exists: " + request.username());
@@ -75,7 +79,25 @@ public class AdminUserService {
             if (response.getStatus() != Response.Status.CREATED.getStatusCode()) {
                 throw new BusinessRuleException("Keycloak rejected user creation: HTTP " + response.getStatus());
             }
-            return toResponse(findUser(CreatedResponseUtil.getCreatedId(response)));
+            createdId = CreatedResponseUtil.getCreatedId(response);
+        }
+
+        // Si la asignacion del rol falla (p. ej. permisos insuficientes del service account),
+        // borramos el usuario recien creado para no dejar admins huerfanos sin rol en Keycloak.
+        try {
+            roleService.assignRealmRole(createdId, KeycloakRoleService.ADMIN_ROLE);
+            return toResponse(findUser(createdId));
+        } catch (RuntimeException ex) {
+            rollbackKeycloakUser(createdId);
+            throw ex;
+        }
+    }
+
+    private void rollbackKeycloakUser(String id) {
+        try {
+            usersResource().get(id).remove();
+        } catch (NotFoundException ignored) {
+            // ya no existe, nada que hacer
         }
     }
 

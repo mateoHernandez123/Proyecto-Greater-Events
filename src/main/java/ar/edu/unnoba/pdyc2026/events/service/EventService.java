@@ -7,6 +7,7 @@ import ar.edu.unnoba.pdyc2026.events.dto.EventDetailResponse;
 import ar.edu.unnoba.pdyc2026.events.dto.EventSummaryResponse;
 import ar.edu.unnoba.pdyc2026.events.dto.EventUpdateRequest;
 import ar.edu.unnoba.pdyc2026.events.dto.RescheduleEventRequest;
+import ar.edu.unnoba.pdyc2026.events.event.EventStateChangedEvent;
 import ar.edu.unnoba.pdyc2026.events.exception.BusinessRuleException;
 import ar.edu.unnoba.pdyc2026.events.exception.ResourceNotFoundException;
 import ar.edu.unnoba.pdyc2026.events.model.Artist;
@@ -21,6 +22,7 @@ import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,11 +32,17 @@ public class EventService {
     private final EventRepository eventRepository;
     private final ArtistRepository artistRepository;
     private final Clock clock;
+    private final ApplicationEventPublisher events;
 
-    public EventService(EventRepository eventRepository, ArtistRepository artistRepository, Clock clock) {
+    public EventService(
+            EventRepository eventRepository,
+            ArtistRepository artistRepository,
+            Clock clock,
+            ApplicationEventPublisher events) {
         this.eventRepository = eventRepository;
         this.artistRepository = artistRepository;
         this.clock = clock;
+        this.events = events;
     }
 
     @Transactional(readOnly = true)
@@ -145,6 +153,7 @@ public class EventService {
         }
         event.setState(EventState.CONFIRMED);
         eventRepository.save(event);
+        events.publishEvent(new EventStateChangedEvent(event.getId(), EventState.CONFIRMED));
         return getEvent(id);
     }
 
@@ -167,6 +176,7 @@ public class EventService {
         event.setStartDate(newStart);
         event.setState(EventState.RESCHEDULED);
         eventRepository.save(event);
+        events.publishEvent(new EventStateChangedEvent(event.getId(), EventState.RESCHEDULED));
         return getEvent(id);
     }
 
@@ -178,6 +188,7 @@ public class EventService {
         }
         event.setState(EventState.CANCELLED);
         eventRepository.save(event);
+        events.publishEvent(new EventStateChangedEvent(event.getId(), EventState.CANCELLED));
         return getEvent(id);
     }
 

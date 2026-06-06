@@ -5,6 +5,7 @@ import ar.edu.unnoba.pdyc2026.events.exception.ResourceNotFoundException;
 import java.util.Map;
 import java.util.concurrent.CompletionException;
 import org.springframework.core.convert.ConversionFailedException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -34,8 +35,26 @@ public class ApiExceptionHandler {
         if (cause instanceof BusinessRuleException badRequest) {
             return badRequest(badRequest);
         }
+        if (cause instanceof DataIntegrityViolationException dive) {
+            return dataIntegrity(dive);
+        }
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Map.of("error", "Unexpected async operation error"));
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, String>> dataIntegrity(DataIntegrityViolationException ex) {
+        String root = ex.getMostSpecificCause() != null ? ex.getMostSpecificCause().getMessage() : "";
+        String lower = root == null ? "" : root.toLowerCase();
+        String message;
+        if (lower.contains("uk_users_username") || lower.contains("users.username") || lower.contains("'username'")) {
+            message = "Username is already registered.";
+        } else if (lower.contains("uk_users_email") || lower.contains("users.email") || lower.contains("'email'")) {
+            message = "Email is already registered.";
+        } else {
+            message = "Conflict with an existing record.";
+        }
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", message));
     }
 
     @ExceptionHandler(ConversionFailedException.class)
