@@ -1,7 +1,15 @@
-# MySQL para la API y Keycloak para OAuth2/OIDC.
-# Arranque: docker compose up -d
-# Parada:   docker compose down
-# Puertos: 3306 MySQL, 8080 Keycloak. Spring Boot corre en 8081.
+# TP5 — Infraestructura local: MySQL (3 BDs), RabbitMQ, Keycloak.
+# Microservicios Spring se levantan con dev-support/start-tp5.sh
+#
+# Puertos:
+#   3306  MySQL
+#   5672  RabbitMQ AMQP
+#   15672 RabbitMQ Management UI
+#   8080  Keycloak
+#   8761  Eureka (script)
+#   8888  Config Server (script)
+#   8081  API Gateway (script)
+#   8082-8084 microservicios (script)
 
 services:
   mysql:
@@ -9,12 +17,12 @@ services:
     container_name: greater-events-mysql
     restart: unless-stopped
     ports:
-      - "3306:3306"
+      - "3307:3306"
     environment:
       MYSQL_ROOT_PASSWORD: insecure
-      MYSQL_DATABASE: pdyc2026
     volumes:
       - mysql_data:/var/lib/mysql
+      - ./docker/mysql-init:/docker-entrypoint-initdb.d:ro
     command: >
       --character-set-server=utf8mb4
       --collation-server=utf8mb4_unicode_ci
@@ -24,6 +32,22 @@ services:
       timeout: 5s
       retries: 30
       start_period: 20s
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: greater-events-rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
 
   keycloak_web:
     image: quay.io/keycloak/keycloak:23.0.7
