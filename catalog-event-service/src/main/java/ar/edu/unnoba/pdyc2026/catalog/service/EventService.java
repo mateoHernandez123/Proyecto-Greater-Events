@@ -24,6 +24,8 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 public class EventService {
@@ -153,7 +155,7 @@ public class EventService {
         EventState previousState = event.getState();
         event.setState(EventState.CONFIRMED);
         eventRepository.save(event);
-        eventStateChangedPublisher.publish(loadEventWithArtists(id), previousState);
+        schedulePublishAfterCommit(id, previousState);
         return getEvent(id);
     }
 
@@ -177,7 +179,7 @@ public class EventService {
         event.setStartDate(newStart);
         event.setState(EventState.RESCHEDULED);
         eventRepository.save(event);
-        eventStateChangedPublisher.publish(loadEventWithArtists(id), previousState);
+        schedulePublishAfterCommit(id, previousState);
         return getEvent(id);
     }
 
@@ -190,8 +192,22 @@ public class EventService {
         EventState previousState = event.getState();
         event.setState(EventState.CANCELLED);
         eventRepository.save(event);
-        eventStateChangedPublisher.publish(loadEventWithArtists(id), previousState);
+        schedulePublishAfterCommit(id, previousState);
         return getEvent(id);
+    }
+
+    private void schedulePublishAfterCommit(Long eventId, EventState previousState) {
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        eventRepository
+                                .findWithArtistsById(eventId)
+                                .ifPresent(
+                                        committed ->
+                                                eventStateChangedPublisher.publish(committed, previousState));
+                    }
+                });
     }
 
     private Event loadEvent(Long id) {

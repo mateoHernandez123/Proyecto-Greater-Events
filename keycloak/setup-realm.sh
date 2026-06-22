@@ -29,7 +29,24 @@ require_cmd() {
 }
 
 require_cmd curl
-require_cmd python3
+resolve_python() {
+  if command -v python3 >/dev/null 2>&1 && python3 -c "import json" >/dev/null 2>&1; then
+    echo python3
+    return
+  fi
+  if command -v py >/dev/null 2>&1 && py -3 -c "import json" >/dev/null 2>&1; then
+    echo "py -3"
+    return
+  fi
+  if command -v python >/dev/null 2>&1 && python -c "import json" >/dev/null 2>&1; then
+    echo python
+    return
+  fi
+  echo "Falta Python 3 con modulo json (python3, py -3 o python)" >&2
+  exit 1
+}
+
+PYTHON=$(resolve_python)
 
 log "Esperando a Keycloak en $KC_BASE ..."
 for i in $(seq 1 60); do
@@ -51,7 +68,7 @@ ADMIN_TOKEN=$(curl -s -X POST "$KC_BASE/realms/master/protocol/openid-connect/to
   -d "username=$KC_ADMIN_USER" \
   -d "password=$KC_ADMIN_PASS" \
   -d "grant_type=password" \
-  -d "client_id=admin-cli" | python3 -c "import json,sys;print(json.load(sys.stdin)['access_token'])")
+  -d "client_id=admin-cli" | $PYTHON -c "import json,sys;print(json.load(sys.stdin)['access_token'])")
 
 auth() { echo "Authorization: Bearer $ADMIN_TOKEN"; }
 
@@ -68,13 +85,13 @@ fi
 
 log "Verificando client $CLIENT_ID..."
 CLIENT_LIST=$(curl -s -H "$(auth)" "$KC_BASE/admin/realms/$REALM/clients?clientId=$CLIENT_ID")
-PDYC_ID=$(echo "$CLIENT_LIST" | python3 -c "import json,sys;l=json.load(sys.stdin);print(l[0]['id'] if l else '')")
+PDYC_ID=$(echo "$CLIENT_LIST" | $PYTHON -c "import json,sys;l=json.load(sys.stdin);print(l[0]['id'] if l else '')")
 if [ -z "$PDYC_ID" ]; then
   log "Creando client $CLIENT_ID con secret $CLIENT_SECRET..."
   curl -s -o /dev/null -w 'client create: %{http_code}\n' -X POST "$KC_BASE/admin/realms/$REALM/clients" \
     -H "$(auth)" -H "Content-Type: application/json" \
     -d "{\"clientId\":\"$CLIENT_ID\",\"enabled\":true,\"protocol\":\"openid-connect\",\"publicClient\":false,\"clientAuthenticatorType\":\"client-secret\",\"secret\":\"$CLIENT_SECRET\",\"serviceAccountsEnabled\":true,\"standardFlowEnabled\":true,\"directAccessGrantsEnabled\":false,\"redirectUris\":[\"https://oauth.pstmn.io/v1/callback\",\"http://localhost:8081/*\"],\"webOrigins\":[\"+\"],\"attributes\":{\"post.logout.redirect.uris\":\"+\"}}"
-  PDYC_ID=$(curl -s -H "$(auth)" "$KC_BASE/admin/realms/$REALM/clients?clientId=$CLIENT_ID" | python3 -c "import json,sys;print(json.load(sys.stdin)[0]['id'])")
+  PDYC_ID=$(curl -s -H "$(auth)" "$KC_BASE/admin/realms/$REALM/clients?clientId=$CLIENT_ID" | $PYTHON -c "import json,sys;print(json.load(sys.stdin)[0]['id'])")
 else
   log "Client $CLIENT_ID ya existe (id=$PDYC_ID)."
 fi
@@ -85,12 +102,12 @@ curl -s -o /dev/null -w 'client secret: %{http_code}\n' -X PUT "$KC_BASE/admin/r
   -d "{\"secret\":\"$CLIENT_SECRET\"}"
 
 log "Asignando realm-admin (composite) al service account del client $CLIENT_ID..."
-SVC_USER_ID=$(curl -s -H "$(auth)" "$KC_BASE/admin/realms/$REALM/clients/$PDYC_ID/service-account-user" | python3 -c "import json,sys;print(json.load(sys.stdin)['id'])")
-RM_ID=$(curl -s -H "$(auth)" "$KC_BASE/admin/realms/$REALM/clients?clientId=realm-management" | python3 -c "import json,sys;print(json.load(sys.stdin)[0]['id'])")
+SVC_USER_ID=$(curl -s -H "$(auth)" "$KC_BASE/admin/realms/$REALM/clients/$PDYC_ID/service-account-user" | $PYTHON -c "import json,sys;print(json.load(sys.stdin)['id'])")
+RM_ID=$(curl -s -H "$(auth)" "$KC_BASE/admin/realms/$REALM/clients?clientId=realm-management" | $PYTHON -c "import json,sys;print(json.load(sys.stdin)[0]['id'])")
 # `realm-admin` es un composite role que incluye manage-users, view-users, query-users,
 # manage-realm, view-realm, etc. Es el approach estandar para un service account que
 # administra el realm. Tambien asignamos los granulares por si el composite se desactiva.
-ROLES_JSON=$(curl -s -H "$(auth)" "$KC_BASE/admin/realms/$REALM/clients/$RM_ID/roles" | python3 -c "import json,sys;wanted={'realm-admin','manage-users','view-users','query-users','manage-realm','view-realm'};print(json.dumps([{'id':r['id'],'name':r['name']} for r in json.load(sys.stdin) if r['name'] in wanted]))")
+ROLES_JSON=$(curl -s -H "$(auth)" "$KC_BASE/admin/realms/$REALM/clients/$RM_ID/roles" | $PYTHON -c "import json,sys;wanted={'realm-admin','manage-users','view-users','query-users','manage-realm','view-realm'};print(json.dumps([{'id':r['id'],'name':r['name']} for r in json.load(sys.stdin) if r['name'] in wanted]))")
 curl -s -o /dev/null -w 'role assign: %{http_code}\n' -X POST "$KC_BASE/admin/realms/$REALM/users/$SVC_USER_ID/role-mappings/clients/$RM_ID" \
   -H "$(auth)" -H "Content-Type: application/json" \
   -d "$ROLES_JSON"
@@ -114,7 +131,7 @@ assign_realm_role_to_user() {
   local user_id="$1"
   local role_name="$2"
   local role_payload
-  role_payload=$(curl -s -H "$(auth)" "$KC_BASE/admin/realms/$REALM/roles/$role_name" | python3 -c "import json,sys;r=json.load(sys.stdin);print(json.dumps([{'id':r['id'],'name':r['name']}]))")
+  role_payload=$(curl -s -H "$(auth)" "$KC_BASE/admin/realms/$REALM/roles/$role_name" | $PYTHON -c "import json,sys;r=json.load(sys.stdin);print(json.dumps([{'id':r['id'],'name':r['name']}]))")
   curl -s -o /dev/null -w "role $role_name -> user: %{http_code}\n" -X POST "$KC_BASE/admin/realms/$REALM/users/$user_id/role-mappings/realm" \
     -H "$(auth)" -H "Content-Type: application/json" \
     -d "$role_payload"
@@ -126,13 +143,13 @@ ensure_realm_role "user"  "Greater Events end-user role"
 
 log "Verificando usuario de prueba $TEST_USER..."
 USER_LIST=$(curl -s -H "$(auth)" "$KC_BASE/admin/realms/$REALM/users?username=$TEST_USER")
-USER_ID=$(echo "$USER_LIST" | python3 -c "import json,sys;l=json.load(sys.stdin);print(l[0]['id'] if l else '')")
+USER_ID=$(echo "$USER_LIST" | $PYTHON -c "import json,sys;l=json.load(sys.stdin);print(l[0]['id'] if l else '')")
 if [ -z "$USER_ID" ]; then
   log "Creando usuario $TEST_USER con password $TEST_PASS..."
   curl -s -o /dev/null -w 'user create: %{http_code}\n' -X POST "$KC_BASE/admin/realms/$REALM/users" \
     -H "$(auth)" -H "Content-Type: application/json" \
     -d "{\"username\":\"$TEST_USER\",\"enabled\":true,\"emailVerified\":true,\"email\":\"$TEST_USER@example.com\",\"firstName\":\"TP3\",\"lastName\":\"User\",\"credentials\":[{\"type\":\"password\",\"value\":\"$TEST_PASS\",\"temporary\":false}]}"
-  USER_ID=$(curl -s -H "$(auth)" "$KC_BASE/admin/realms/$REALM/users?username=$TEST_USER" | python3 -c "import json,sys;print(json.load(sys.stdin)[0]['id'])")
+  USER_ID=$(curl -s -H "$(auth)" "$KC_BASE/admin/realms/$REALM/users?username=$TEST_USER" | $PYTHON -c "import json,sys;print(json.load(sys.stdin)[0]['id'])")
 else
   log "Usuario $TEST_USER ya existe (id=$USER_ID)."
 fi
@@ -141,13 +158,13 @@ assign_realm_role_to_user "$USER_ID" "admin"
 
 log "Verificando usuario final $END_USER..."
 END_USER_LIST=$(curl -s -H "$(auth)" "$KC_BASE/admin/realms/$REALM/users?username=$END_USER")
-END_USER_ID=$(echo "$END_USER_LIST" | python3 -c "import json,sys;l=json.load(sys.stdin);print(l[0]['id'] if l else '')")
+END_USER_ID=$(echo "$END_USER_LIST" | $PYTHON -c "import json,sys;l=json.load(sys.stdin);print(l[0]['id'] if l else '')")
 if [ -z "$END_USER_ID" ]; then
   log "Creando usuario $END_USER con password $END_PASS..."
   curl -s -o /dev/null -w 'end-user create: %{http_code}\n' -X POST "$KC_BASE/admin/realms/$REALM/users" \
     -H "$(auth)" -H "Content-Type: application/json" \
     -d "{\"username\":\"$END_USER\",\"enabled\":true,\"emailVerified\":true,\"email\":\"$END_USER@example.com\",\"firstName\":\"TP4\",\"lastName\":\"EndUser\",\"credentials\":[{\"type\":\"password\",\"value\":\"$END_PASS\",\"temporary\":false}]}"
-  END_USER_ID=$(curl -s -H "$(auth)" "$KC_BASE/admin/realms/$REALM/users?username=$END_USER" | python3 -c "import json,sys;print(json.load(sys.stdin)[0]['id'])")
+  END_USER_ID=$(curl -s -H "$(auth)" "$KC_BASE/admin/realms/$REALM/users?username=$END_USER" | $PYTHON -c "import json,sys;print(json.load(sys.stdin)[0]['id'])")
 else
   log "Usuario $END_USER ya existe (id=$END_USER_ID)."
 fi

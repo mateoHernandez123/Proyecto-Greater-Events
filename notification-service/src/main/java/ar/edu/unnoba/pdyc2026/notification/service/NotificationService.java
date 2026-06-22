@@ -63,9 +63,14 @@ public class NotificationService {
 
     @Transactional
     public NotificationResponse markRead(Long notificationId) {
+        return setRead(notificationId, true);
+    }
+
+    @Transactional
+    public NotificationResponse setRead(Long notificationId, boolean read) {
         NotificationUser user = currentUserService.getOrProvisionCurrentUser();
         Notification notification = requireOwnedNotification(notificationId, user.getKeycloakId());
-        notification.setRead(true);
+        notification.setRead(read);
         return toResponse(notification);
     }
 
@@ -92,25 +97,17 @@ public class NotificationService {
         notification.setReason(reason);
         notification.setPreviousState(message.previousState());
         notification.setCurrentState(message.currentState());
-        notification.setMessage(messageFor(message.eventName(), reason, message.previousState(), message.currentState()));
+        notification.setMessage(messageFor(message.eventName(), reason, message.currentState()));
         notificationRepository.save(notification);
     }
 
-    private static String messageFor(
-            String eventName, NotificationReason reason, EventState previousState, EventState currentState) {
+    private static String messageFor(String eventName, NotificationReason reason, EventState newState) {
+        String stateLabel = newState.getApiValue();
         String reasonLabel = switch (reason) {
             case FAVORITE_EVENT -> "your favorite event";
             case FOLLOWED_ARTIST -> "an event with an artist you follow";
         };
-        return "Update on "
-                + reasonLabel
-                + ": '"
-                + eventName
-                + "' changed from "
-                + previousState.getApiValue()
-                + " to "
-                + currentState.getApiValue()
-                + ".";
+        return "Update on " + reasonLabel + ": '" + eventName + "' is now " + stateLabel + ".";
     }
 
     private static NotificationResponse toResponse(Notification notification) {
@@ -119,7 +116,6 @@ public class NotificationService {
                 notification.getEventId(),
                 notification.getEventName(),
                 notification.getReason(),
-                notification.getPreviousState(),
                 notification.getCurrentState(),
                 notification.getMessage(),
                 notification.getCreatedAt(),

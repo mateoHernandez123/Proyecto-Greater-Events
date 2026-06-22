@@ -170,7 +170,9 @@
           "item": [
             { "name": "List notifications", "request": { "method": "GET", "url": "{{baseUrl}}/me/notifications", "description": "`GET /me/notifications` — lista todas las notificaciones del usuario." } },
             { "name": "List unread notifications", "request": { "method": "GET", "url": "{{baseUrl}}/me/notifications?unread_only=true", "description": "Filtra solo las que no fueron marcadas como leidas." } },
-            { "name": "Mark notification as read", "request": { "method": "PUT", "url": "{{baseUrl}}/me/notifications/{{notificationId}}/read" } }
+            { "name": "Mark notification as read (PATCH)", "request": { "method": "PATCH", "url": "{{baseUrl}}/me/notifications/{{notificationId}}", "header": [ { "key": "Content-Type", "value": "application/json" } ], "body": { "mode": "raw", "raw": "{\n  \"is_read\": true\n}" }, "description": "`PATCH /me/notifications/{id}` con body `{\"is_read\": true}` (Anexo TP4)." } },
+            { "name": "Mark notification as read (PUT alias)", "request": { "method": "PUT", "url": "{{baseUrl}}/me/notifications/{{notificationId}}/read" } },
+            { "name": "Delete notification", "request": { "method": "DELETE", "url": "{{baseUrl}}/me/notifications/{{notificationId}}", "description": "`DELETE /me/notifications/{id}` — elimina la notificacion del usuario." } }
           ]
         }
       ]

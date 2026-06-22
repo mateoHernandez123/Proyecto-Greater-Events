@@ -1,13 +1,16 @@
 package ar.edu.unnoba.pdyc2026.notification.web;
 
+import ar.edu.unnoba.pdyc2026.notification.dto.MarkNotificationReadRequest;
 import ar.edu.unnoba.pdyc2026.notification.dto.NotificationResponse;
 import ar.edu.unnoba.pdyc2026.notification.service.NotificationService;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -27,6 +30,13 @@ public class MeNotificationsController {
     public List<NotificationResponse> listNotifications(
             @RequestParam(name = "unread_only", defaultValue = "false") boolean unreadOnly) {
         return notificationService.listMyNotifications(unreadOnly);
+    }
+
+    @PatchMapping("/{id}")
+    public NotificationResponse updateReadStatus(
+            @PathVariable Long id, @RequestBody(required = false) MarkNotificationReadRequest request) {
+        boolean read = request == null || request.isRead() == null || request.isRead();
+        return notificationService.setRead(id, read);
     }
 
     @PutMapping("/{id}/read")

@@ -10,8 +10,7 @@ public record NotificationResponse(
         @JsonProperty("event_id") Long eventId,
         @JsonProperty("event_name") String eventName,
         NotificationReason reason,
-        @JsonProperty("previous_state") EventState previousState,
-        @JsonProperty("current_state") EventState currentState,
+        @JsonProperty("new_state") EventState newState,
         String message,
         @JsonProperty("created_at") Instant createdAt,
         boolean read) {}

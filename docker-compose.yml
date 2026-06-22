@@ -2,7 +2,7 @@
 # Microservicios Spring se levantan con dev-support/start-tp5.sh
 #
 # Puertos:
-#   3306  MySQL
+#   3307  MySQL (host; contenedor escucha 3306)
 #   5672  RabbitMQ AMQP
 #   15672 RabbitMQ Management UI
 #   8080  Keycloak

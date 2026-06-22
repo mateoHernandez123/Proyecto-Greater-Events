@@ -8,6 +8,13 @@ import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.oauth2.server.resource.authentication.ReactiveJwtAuthenticationConverterAdapter;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 
+/**
+ * Seguridad perimetral del Gateway (Anexo TP5 — PDyC 2026).
+ *
+ * <p>{@code permitAll()} en autorización + Resource Server activo: valida JWT si viene en la
+ * cabecera (rechazo 401 si es inválido), deja pasar peticiones anónimas, y delega la
+ * autorización de dominio a cada microservicio. TokenRelay en las rutas propaga el bearer.
+ */
 @Configuration
 @EnableWebFluxSecurity
 public class GatewaySecurityConfig {

@@ -1,10 +1,12 @@
-# Greater Events — API REST (Spring Boot)
+# Greater Events — Microservicios Spring Cloud (TP5)
 
-Backend **REST** para una comunidad vinculada a **eventos musicales** y **artistas**, con perfil **administrador** (backoffice) y **usuario final** (catálogo público, follow de artistas, favoritos de eventos y notificaciones). La API tiene tres niveles de acceso:
+Backend **REST** distribuido para una comunidad vinculada a **eventos musicales** y **artistas**, con perfil **administrador** (backoffice) y **usuario final** (catálogo público, follow de artistas, favoritos de eventos y notificaciones). La API tiene tres niveles de acceso:
 
 - **Público** (sin token): catálogo de artistas y eventos vigentes, registro de usuarios.
 - **Admin** (`/admin/**`, rol `admin`): backoffice de TP2 + gestión de usuarios admin (Keycloak).
 - **Usuario final** (`/me/**`, rol `user`): seguir/dejar de seguir artistas, marcar favoritos, notificaciones.
+
+**TP5** descompone el monolito TP4 en microservicios con **Eureka**, **Config Server**, **API Gateway** (JWT relay), **RabbitMQ** (notificaciones asíncronas) y **tres bases MySQL** independientes. El punto de entrada sigue siendo **`http://localhost:8081`**.
 
 Autenticación delegada a **Keycloak** (OAuth2 Resource Server, JWT). Roles parseados desde el claim `realm_access.roles`.
 
@@ -26,41 +28,183 @@ Todas las credenciales locales ya vienen seteadas en el repo (son **dev only**) 
 | Realm roles            | `admin`, `user`                                |
 | Usuario admin de prueba| `tp3-user` / `tp3pass` (rol `admin`)           |
 | Usuario final de prueba| `tp4-user` / `tp4pass` (rol `user`)            |
-| Backend Spring Boot    | `http://localhost:8081`                        |
-| MySQL (perfil default) | `localhost:3306`, db `pdyc2026`, root/insecure |
+| API Gateway (Postman)  | `http://localhost:8081`                        |
+| MySQL (Docker)         | `localhost:3307`, root/insecure                |
+| Bases de datos         | `catalog_event`, `user_social`, `notification_db` |
+| RabbitMQ UI            | `http://localhost:15672` (guest/guest)         |
+| Eureka                 | `http://localhost:8761`                        |
 
 Pasos (en orden, desde la raíz del repo, en Git Bash o PowerShell):
 
 ```bash
-# 1) Levantar MySQL + Keycloak + Postgres-de-Keycloak
-docker compose up -d
+# 1) Levantar infra + microservicios (Docker + 6 JARs Spring)
+./dev-support/start-tp5.sh
 
-# 2) Esperar a que Keycloak responda (40-60s la primera vez)
-curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/realms/master/.well-known/openid-configuration
-# tiene que devolver 200
-
-# 3) Crear realm `unnoba`, client `pdyc`, secret, roles admin/user, usuarios tp3-user y tp4-user (idempotente)
-bash keycloak/setup-realm.sh        # PowerShell: .\keycloak\setup-realm.ps1
-
-# 4) Arrancar el backend (puerto 8081)
-export KEYCLOAK_CLIENT_SECRET="pdyc-secret-dev"   # PowerShell: $env:KEYCLOAK_CLIENT_SECRET="pdyc-secret-dev"
-./mvnw spring-boot:run -Dspring-boot.run.profiles=local   # `local` usa H2 en memoria; sin esa flag usa MySQL
-
-# 5) Smoke tests publicos (sin token, deben responder 200 con JSON)
+# 2) Smoke tests publicos (sin token, deben responder 200 con JSON)
 curl -s http://localhost:8081/artists | head -c 300; echo
 curl -s http://localhost:8081/events  | head -c 300; echo
 
-# 6) Probar en Postman
-# 6.1) Importar API/Greater-Events.postman_collection.json y API/Greater-Events-Local.postman_environment.json
-# 6.2) Elegir el environment "Greater Events - Local" (ya trae secret, baseUrl, credenciales).
-# 6.3) Carpeta "Public endpoints": no requieren token (incluye POST /auth/register).
-# 6.4) Carpeta "Admin endpoints":  pestana Authorization -> Get New Access Token -> login tp3-user/tp3pass.
-# 6.5) Carpeta "End-user endpoints": idem pero login tp4-user/tp4pass.
+# 3) Probar en Postman
+# 3.1) Importar API/Greater-Events.postman_collection.json y API/Greater-Events-Local.postman_environment.json
+# 3.2) Elegir el environment "Greater Events - Local" (ya trae secret, baseUrl, credenciales).
+# 3.3) Carpeta "Public endpoints": no requieren token (incluye POST /auth/register).
+# 3.4) Carpeta "Admin endpoints":  pestana Authorization -> Get New Access Token -> login tp3-user/tp3pass.
+# 3.5) Carpeta "End-user endpoints": idem pero login tp4-user/tp4pass.
+# 3.6) Para notificaciones: como tp4-user marcar favorito/seguir artista; como tp3-user cancelar/reprogramar evento;
+#      volver a tp4-user y GET /me/notifications (RabbitMQ, puede tardar 1-2s).
 ```
 
-> Guía expandida en la sección [0.1](#01-cómo-probar-el-tp3-de-punta-a-punta). TP4 documentado en la sección [00](#00-tp4--usuarios-finales-roles-publico-y-notificaciones).
+> Guía expandida en la sección [01](#01-tp5--microservicios-spring-cloud). TP4 documentado en la sección [00](#00-tp4--usuarios-finales-roles-publico-y-notificaciones).
 >
 > **Nota de seguridad:** `pdyc-secret-dev`, `tp3pass` y `tp4pass` son valores de desarrollo locales para que esta entrega sea reproducible. En ambientes reales se rotan, se inyectan por variables de entorno y nunca se commitean.
+
+---
+
+## 01. TP5 — Microservicios Spring Cloud
+
+Esta sección documenta la **Práctica 5**: descomposición del monolito TP4 en microservicios con Spring Cloud.
+
+### 01.0 Respuestas conceptuales (consigna TP5)
+
+**1. Microservicios.** Arquitectura que divide una aplicación en servicios pequeños, autónomos y desplegables de forma independiente. Cada uno encapsula una capacidad de negocio concreta, expone su API, persiste en su propia base de datos y se comunica con otros servicios por red (REST, mensajería). El objetivo es escalar, evolucionar y desplegar por dominio sin acoplar todo el sistema en un único monolito.
+
+**2. Teorema CAP.** En un sistema distribuido con partición de red (P), solo se pueden garantizar simultáneamente dos de tres propiedades: **Consistencia** (todos los nodos ven los mismos datos), **Disponibilidad** (toda petición recibe respuesta) y **Tolerancia a particiones**. En microservicios las redes fallan con frecuencia; por eso el diseño suele elegir AP (disponibilidad + partición) o CP según el caso, y compensar con **consistencia eventual** donde haga falta.
+
+**3. Tolerancia a fallos.** Implica que el sistema sigue operando (total o parcialmente) cuando un componente cae: timeouts, reintentos, circuit breakers, réplicas, colas persistentes. En microservicios es crítico porque hay más puntos de falla (red, broker, BD por servicio); un fallo aislado no debería tumbar todo el ecosistema.
+
+**4. Resiliencia.** Capacidad del sistema de **absorber fallos y recuperarse** sin degradación permanente: detectar errores, aislar el servicio afectado, usar alternativas (fallback, caché, respuesta degradada) y restablecer el estado normal. Va más allá de “no caerse”: incluye observabilidad y autorreparación.
+
+**5. Circuit Breaker.** Patrón que envuelve llamadas a servicios externos con un “interruptor”: tras N fallos consecutivos, el circuito **abre** y las llamadas fallan rápido sin saturar al dependiente; tras un tiempo entra en **half-open** para probar recuperación y, si responde bien, **cierra** de nuevo. Evita cascadas de timeout en microservicios.
+
+**6. Consistencia eventual.** Tras una escritura, no todos los lectores ven el dato nuevo al instante, pero **convergen al mismo estado** si no hay más actualizaciones. Es el trade-off típico cuando se prioriza disponibilidad (p. ej. notificaciones vía RabbitMQ: el evento se cancela en catalog y la notificación aparece unos segundos después en notification-service).
+
+**7. Patrones breves:**
+- **Saga:** Orquesta una transacción de negocio que cruza varios servicios mediante pasos locales + compensaciones si un paso falla (ej.: registrar en Keycloak y revertir si falla la BD local).
+- **Event Sourcing:** Persistir el estado como secuencia de eventos de dominio en lugar de sobrescribir filas; el estado actual se reconstruye reproduciendo eventos.
+- **CQRS:** Separar modelos de **escritura** (commands) y **lectura** (queries); permite optimizar cada lado (p. ej. vistas desnormalizadas para listados sin cargar el agregado completo).
+
+**8. Service Discovery.** Mecanismo para que un servicio encuentre instancias vivas de otro sin URLs fijas. El cliente (o el gateway/load balancer) consulta un registro y obtiene host/puerto actuales. Implementaciones comunes: **Netflix Eureka**, **Consul**, **etcd**, **Kubernetes DNS/Services**, **Spring Cloud Kubernetes**.
+
+**9. API Gateway.** Punto de entrada único delante de los microservicios: enruta paths a servicios internos, termina TLS, valida JWT, aplica rate limiting y **Token Relay**. En este proyecto: Spring Cloud Gateway en `:8081` con rutas `lb://` vía Eureka.
+
+### 01.1 Arquitectura
+
+| Componente | Puerto | Responsabilidad |
+| ---------- | ------ | --------------- |
+| **api-gateway** | 8081 | Punto de entrada único; enruta y reenvía JWT (`TokenRelay`) |
+| **catalog-event-service** | 8082 | Artistas, eventos, catálogo público, admin artists/events |
+| **user-social-service** | 8083 | Registro, `/me/following`, `/me/favorite-events`, admin users |
+| **notification-service** | 8084 | `/me/notifications`; consume RabbitMQ |
+| **eureka-server** | 8761 | Service discovery |
+| **config-server** | 8888 | Configuración centralizada (`config-repo/`) |
+| **RabbitMQ** | 5672 / 15672 | Mensajería async para cambios de estado de eventos |
+| **MySQL** | 3307 (host) | Tres BDs: `catalog_event`, `user_social`, `notification_db` |
+
+Flujo de notificaciones (reemplaza el `@EventListener` del monolito TP4):
+
+1. `catalog-event-service` confirma/reprograma/cancela un evento y publica `EventStateChangedMessage` en RabbitMQ **después del commit** de la transacción.
+2. `notification-service` consume el mensaje, consulta destinatarios vía Feign a `user-social-service` (`/internal/notifications/recipients`).
+3. Persiste notificaciones en su propia BD y las expone en `GET /me/notifications`.
+
+### 01.2 Módulos Maven
+
+```
+greater-events/          (parent POM)
+├── common-lib/          DTOs, enums, seguridad JWT compartida
+├── eureka-server/
+├── config-server/
+├── api-gateway/
+├── catalog-event-service/
+├── user-social-service/
+└── notification-service/
+```
+
+### 01.3 Cómo probar el TP5 end-to-end
+
+```bash
+# Arranque completo (Docker + realm Keycloak + compilar + 6 JARs)
+./dev-support/start-tp5.sh
+
+# 1) Catálogo público, sin token
+curl -s http://localhost:8081/artists | head -c 400; echo
+curl -s http://localhost:8081/events  | head -c 400; echo
+
+# 2) Registro público
+curl -s -X POST http://localhost:8081/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"jperez","email":"jperez@example.com","password":"Secret123!","first_name":"Juan","last_name":"Perez"}'
+
+# 3) Postman — folder "End-user endpoints" (tp4-user/tp4pass):
+#    POST /me/following  {"artist_id": 1}
+#    POST /me/favorite-events {"event_id": 2}
+
+# 4) Postman — folder "Admin endpoints" (tp3-user/tp3pass):
+#    PUT /admin/events/2/canceled
+
+# 5) Volver a "End-user endpoints":
+#    GET /me/notifications  → notificaciones generadas vía RabbitMQ
+
+# Tests unitarios / context-load (sin Docker):
+./mvnw clean test
+```
+
+Para detener los microservicios Spring iniciados por el script:
+
+```bash
+# Git Bash / Linux / macOS
+pkill -f 'eureka-server|config-server|catalog-event-service|user-social-service|notification-service|api-gateway' || true
+docker compose down    # agregar -v para borrar volúmenes MySQL
+```
+
+### 01.4 Autenticación perimetral (Gateway) y autorización de grano fino (microservicios)
+
+Implementación alineada con el **Anexo TP5** de la consigna. Clase: `api-gateway/.../GatewaySecurityConfig.java`.
+
+El Gateway usa `SecurityWebFilterChain` (WebFlux/Netty) con:
+
+- `.anyExchange().permitAll()` — no discrimina paths públicos/privados; solo enruta.
+- `.oauth2ResourceServer(...jwt...)` — si viene `Authorization: Bearer`, valida firma/exp/`iss` contra JWKS de Keycloak.
+- Filtro **TokenRelay** en cada ruta del gateway — reenvía el JWT validado al microservicio destino.
+
+Cada microservicio tiene su propio `SecurityConfig` (Servlet) con reglas de dominio (`hasRole("admin")`, `hasRole("user")`, rutas públicas).
+
+| Caso | Qué pasa |
+| ---- | -------- |
+| **A — Sin token** | Gateway deja pasar la petición anónima. El microservicio aplica su `SecurityConfig` y responde **401** si la ruta exige autenticación (ej. `GET /me/notifications`). |
+| **B — Token válido** | Gateway valida JWT, `permitAll()` deja pasar, TokenRelay propaga el token. El microservicio decodifica, mapea roles (`KeycloakJwtAuthenticationConverter`) y autoriza. |
+| **C — Token inválido/expirado** | Falla en la fase de **autenticación** del Gateway → **401** inmediato; el tráfico no llega a la red interna. |
+
+Ventajas pedagógicas: el Gateway no se redeploya cuando un equipo agrega endpoints; el escudo perimetral filtra tokens corruptos; la lógica de permisos vive en el servicio de dominio.
+
+### 01.5 Flujo práctico: “Feed de eventos” (`GET /me/following/events`)
+
+Ejemplo de composición entre servicios con datos dispersos:
+
+1. Cliente → **API Gateway** (`GET /me/following/events` + JWT).
+2. Gateway → **user-social-service** (TokenRelay).
+3. `EndUserService` lee los `artist_id` que sigue el usuario en la BD `user_social`.
+4. Llama por **OpenFeign** a **catalog-event-service**: `GET /internal/events/upcoming?artistIds=1,3,...`.
+5. Catalog filtra eventos `CONFIRMED`/`RESCHEDULED` futuros de esos artistas.
+6. User-social combina y devuelve JSON al cliente.
+
+Mismo patrón Feign en: `GET /me/following` (resuelve nombres de artistas), `POST /me/following` / `POST /me/favorite-events` (valida IDs en catalog).
+
+### 01.6 Checklist consigna práctica
+
+| Requisito consigna | Implementación en el repo |
+| ------------------ | ------------------------- |
+| Spring Cloud Gateway + JWT + TokenRelay | `api-gateway`, `config-repo/api-gateway.yml` |
+| Eureka (service discovery) | `eureka-server`, clientes en cada servicio |
+| Config Server centralizado | `config-server`, `config-repo/*.yml` |
+| Keycloak centralizado (TP3/TP4) | `docker-compose.yml`, `keycloak/setup-realm.sh` |
+| Gateway `permitAll` + Resource Server | `GatewaySecurityConfig` |
+| Autorización fina en microservicios | `SecurityConfig` en catalog, user-social, notification |
+| Catalog & Event Service + BD propia | `catalog-event-service`, BD `catalog_event` |
+| User & Social Service + BD propia + Feign | `user-social-service`, BD `user_social`, `CatalogClient` |
+| Notification Service + BD propia | `notification-service`, BD `notification_db` |
+| Comunicación síncrona REST/Feign | `CatalogClient`, `UserSocialClient`, `/internal/**` |
+| Comunicación asíncrona (broker) | RabbitMQ, `EventStateChangedPublisher` → `EventStateChangedListener` |
+| Feed de eventos compuesto | `EndUserService.listUpcomingEventsForFollowedArtists()` |
 
 ---
 
@@ -85,7 +229,7 @@ Esta sección documenta los cambios que introduce la **Práctica 4** sobre la ba
 - **Notificaciones:** implementadas con un **event de dominio asincrónico**:
   - `EventService` publica `EventStateChangedEvent(eventId, newState)` cuando un evento pasa a `CONFIRMED`, `RESCHEDULED` o `CANCELLED`.
   - `NotificationService` está marcado con `@Async("notificationExecutor")` + `@EventListener` y, en un `ThreadPoolTaskExecutor` dedicado, genera una `Notification` por cada usuario que tenga el evento como favorito o que siga a alguno de los artistas del lineup (si calza por ambas razones, se prioriza `FAVORITE_EVENT`).
-  - Los usuarios consultan sus notificaciones con `GET /me/notifications` (o `?unread_only=true`) y marcan como leídas con `PUT /me/notifications/{id}/read`.
+  - Los usuarios consultan sus notificaciones con `GET /me/notifications` (o `?unread_only=true`) y marcan como leídas con `PATCH /me/notifications/{id}` body `{"is_read": true}` (Anexo TP4). Se mantiene `PUT /me/notifications/{id}/read` como alias sin body.
 
 ### 00.2 Endpoints nuevos (TP4)
 
@@ -104,7 +248,7 @@ Esta sección documenta los cambios que introduce la **Práctica 4** sobre la ba
 | `POST /me/favorite-events`             | Rol `user`   | Body `{"event_id": N}`. `400` si el evento es `tentative` o ya era favorito.                               |
 | `DELETE /me/favorite-events/{eventId}` | Rol `user`   | `204` al desmarcar. `404` si no era favorito.                                                              |
 | `GET  /me/notifications`               | Rol `user`   | Lista las notificaciones del usuario. Soporta query `unread_only=true`.                                    |
-| `PUT  /me/notifications/{id}/read`     | Rol `user`   | Marca la notificación como leída.                                                                          |
+| `PATCH /me/notifications/{id}`         | Rol `user`   | Marca la notificación como leída. Body `{"is_read": true}` (Anexo TP4). Alias: `PUT /me/notifications/{id}/read`. |
 | `POST /admin/users` (cambio TP4)       | Rol `admin`  | Sigue funcionando como en TP3 pero ahora **asigna automáticamente el rol `admin`** al usuario creado.      |
 
 ### 00.3 Cómo probar el TP4 end-to-end
