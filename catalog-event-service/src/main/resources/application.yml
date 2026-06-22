@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: catalog-event-service
+  config:
+    import: optional:configserver:http://localhost:8888
+  datasource:
+    url: jdbc:mysql://localhost:3307/catalog_event
+    username: root
+    password: insecure
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    database-platform: org.hibernate.dialect.MySQLDialect
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    open-in-view: false
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8080/realms/unnoba
+          jwk-set-uri: http://localhost:8080/realms/unnoba/protocol/openid-connect/certs
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+
+server:
+  port: 8082
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    prefer-ip-address: true

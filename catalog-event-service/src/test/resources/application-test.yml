@@ -1,0 +1,22 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:catalog_event;MODE=MySQL;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
+  cloud:
+    config:
+      enabled: false
+
+eureka:
+  client:
+    enabled: false
+    register-with-eureka: false
+    fetch-registry: false

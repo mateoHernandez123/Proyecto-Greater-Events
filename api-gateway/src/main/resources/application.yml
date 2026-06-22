@@ -1,0 +1,75 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: api-gateway
+  config:
+    import: optional:configserver:http://localhost:8888
+  cloud:
+    config:
+      uri: http://localhost:8888
+    gateway:
+      routes:
+            - id: catalog-artists
+              uri: lb://catalog-event-service
+              predicates:
+                - Path=/artists/**
+              filters:
+                - TokenRelay=
+            - id: catalog-events
+              uri: lb://catalog-event-service
+              predicates:
+                - Path=/events/**
+              filters:
+                - TokenRelay=
+            - id: catalog-admin-artists
+              uri: lb://catalog-event-service
+              predicates:
+                - Path=/admin/artists/**
+              filters:
+                - TokenRelay=
+            - id: catalog-admin-events
+              uri: lb://catalog-event-service
+              predicates:
+                - Path=/admin/events/**
+              filters:
+                - TokenRelay=
+            - id: user-social-auth
+              uri: lb://user-social-service
+              predicates:
+                - Path=/auth/**
+              filters:
+                - TokenRelay=
+            - id: user-social-following
+              uri: lb://user-social-service
+              predicates:
+                - Path=/me/following/**
+              filters:
+                - TokenRelay=
+            - id: user-social-favorite-events
+              uri: lb://user-social-service
+              predicates:
+                - Path=/me/favorite-events/**
+              filters:
+                - TokenRelay=
+            - id: user-social-admin-users
+              uri: lb://user-social-service
+              predicates:
+                - Path=/admin/users/**
+              filters:
+                - TokenRelay=
+            - id: notification-service
+              uri: lb://notification-service
+              predicates:
+                - Path=/me/notifications/**
+              filters:
+                - TokenRelay=
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+
+spring.security.oauth2.resourceserver.jwt.issuer-uri: http://localhost:8080/realms/unnoba
+spring.security.oauth2.resourceserver.jwt.jwk-set-uri: http://localhost:8080/realms/unnoba/protocol/openid-connect/certs

@@ -12,69 +12,53 @@
     </parent>
 
     <groupId>ar.edu.unnoba.pdyc2026</groupId>
-    <artifactId>events</artifactId>
+    <artifactId>greater-events</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>Greater Events</name>
-    <description>PDyC 2026 - Greater Events REST API</description>
+    <packaging>pom</packaging>
+    <name>Greater Events — Microservices</name>
+    <description>PDyC 2026 — TP5 Microservices</description>
+
+    <modules>
+        <module>common-lib</module>
+        <module>eureka-server</module>
+        <module>config-server</module>
+        <module>api-gateway</module>
+        <module>catalog-event-service</module>
+        <module>user-social-service</module>
+        <module>notification-service</module>
+    </modules>
 
     <properties>
         <java.version>17</java.version>
+        <spring-cloud.version>2024.0.0</spring-cloud.version>
+        <keycloak-admin.version>23.0.7</keycloak-admin.version>
     </properties>
 
-    <dependencies>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-jpa</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-validation</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-security</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.keycloak</groupId>
-            <artifactId>keycloak-admin-client</artifactId>
-            <version>23.0.7</version>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-configuration-processor</artifactId>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>com.mysql</groupId>
-            <artifactId>mysql-connector-j</artifactId>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.h2database</groupId>
-            <artifactId>h2</artifactId>
-            <scope>runtime</scope>
-        </dependency>
-    </dependencies>
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>ar.edu.unnoba.pdyc2026</groupId>
+                <artifactId>common-lib</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <build>
-        <plugins>
-            <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-            </plugin>
-        </plugins>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-maven-plugin</artifactId>
+                </plugin>
+            </plugins>
+        </pluginManagement>
     </build>
 </project>

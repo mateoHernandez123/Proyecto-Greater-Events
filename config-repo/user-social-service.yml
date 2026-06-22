@@ -1,0 +1,25 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: user-social-service
+  datasource:
+    url: jdbc:mysql://localhost:3307/user_social
+    username: root
+    password: insecure
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    database-platform: org.hibernate.dialect.MySQLDialect
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    open-in-view: false
+
+keycloak:
+  admin:
+    server-url: http://localhost:8080
+    realm: unnoba
+    client-id: pdyc
+    client-secret: ${KEYCLOAK_CLIENT_SECRET:change-me}
+    grant-type: client_credentials
