@@ -284,6 +284,37 @@ curl -s -X POST http://localhost:8081/auth/register \
 #    - GET /me/notifications  -> aparecen las notificaciones generadas async.
 ```
 
+### 00.4 Refresh Token (Anexo TP4)
+
+Cuando el **access token** expira (por defecto a los pocos minutos en Keycloak), se puede
+obtener uno nuevo **sin reingresar usuario y contraseña** usando el **refresh token** que
+devolvió el flujo Authorization Code. El grant type es `refresh_token`.
+
+**Desde Postman:**
+
+1. En la pestaña *Authorization* del folder (Admin o End-user), al hacer *Get New Access
+   Token* con Authorization Code, Postman guarda tanto el `access_token` como el
+   `refresh_token`.
+2. Cuando el access token expira, Postman ofrece *Refresh Token* en el administrador de
+   tokens (o se puede usar el request **"Refresh access token"** del folder *Helpers*).
+3. El request golpea el `keycloakTokenUrl` con `grant_type=refresh_token` y devuelve un
+   nuevo `access_token` (y un `refresh_token` rotado) sin pedir credenciales.
+
+**Equivalente con curl** (reemplazar `<REFRESH_TOKEN>` por el recibido en el login):
+
+```bash
+curl -s -X POST "http://localhost:8080/realms/unnoba/protocol/openid-connect/token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=refresh_token" \
+  -d "client_id=pdyc" \
+  -d "client_secret=pdyc-secret-dev" \
+  -d "refresh_token=<REFRESH_TOKEN>"
+# Respuesta: nuevo access_token + refresh_token (rotado) + expires_in.
+```
+
+> El refresh token tiene una vida más larga que el access token. Cuando también expira (o
+> se revoca la sesión en Keycloak), recién ahí el usuario debe volver a autenticarse.
+
 ---
 
 ## 0. TP3 — IAM, OAuth2 y Keycloak
