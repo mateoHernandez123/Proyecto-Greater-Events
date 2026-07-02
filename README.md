@@ -45,7 +45,7 @@ curl -s http://localhost:8081/artists | head -c 300; echo
 curl -s http://localhost:8081/events  | head -c 300; echo
 
 # 3) Probar en Postman
-# 3.1) Importar SOLO API/Greater-Events.postman_collection.json (autocontenida: trae secret, baseUrl y credenciales adentro; no necesita environment).
+# 3.1) Importar SOLO Postman/Greater-Events.postman_collection.json (autocontenida: trae secret, baseUrl y credenciales adentro; no necesita environment).
 # 3.2) Carpeta "1 - Publicos": no requieren token (incluye POST /auth/register).
 # 3.3) Carpeta "3 - Admin": pestana Authorization -> Get New Access Token -> login tp3-user/tp3pass.
 # 3.4) Carpeta "2 - End-user": idem pero login tp4-user/tp4pass.
@@ -269,7 +269,7 @@ curl -s -X POST http://localhost:8081/auth/register \
   -d '{"username":"jperez","email":"jperez@example.com","password":"Secret123!","first_name":"Juan","last_name":"Perez"}'
 
 # 3) Probar /me/** desde Postman:
-#    - Importar coleccion + environment de API/, elegir "Greater Events - Local".
+#    - Importar coleccion + environment de Postman/, elegir "Greater Events - Local".
 #    - Folder "End-user endpoints" -> Authorization -> Get New Access Token -> login con tp4-user / tp4pass.
 #    - POST /me/following  body {"artist_id": 1}
 #    - POST /me/favorite-events body {"event_id": 2}
@@ -478,7 +478,7 @@ $ curl -s -H "Authorization: Bearer not-a-real-token" http://localhost:8081/admi
 
 ### 0.1.8 Paso 7 — Probar con Postman (Authorization Code, lo que pide la consigna)
 
-1. **Import** → subí **solo** `API/Greater-Events.postman_collection.json`. Es **autocontenida**: todas las variables viven dentro de la colección, no hace falta importar ningún environment. Valores ya cargados:
+1. **Import** → subí **solo** `Postman/Greater-Events.postman_collection.json`. Es **autocontenida**: todas las variables viven dentro de la colección, no hace falta importar ningún environment. Valores ya cargados:
 
    | Variable               | Valor                                                               |
    | ---------------------- | ------------------------------------------------------------------- |
@@ -550,7 +550,7 @@ docker compose down -v         # además borra los volúmenes (datos de MySQL y 
 | Capas                 | Repositorios Spring Data, servicios `@Service`, controladores `@RestController`, DTOs con **Java records** y validación Jakarta.                                                                                                                                                                  |
 | Errores HTTP          | `ApiExceptionHandler` mapea reglas de negocio a **400**, no encontrado a **404**, conflicto único a **409** (username/email). `JsonAuthEntryPoint` y `JsonAccessDeniedHandler` mapean **401** y **403**. Todos devuelven `{"error":"mensaje"}`.                                                    |
 | Datos demo            | `SampleDataLoader` (solo si no hay artistas al arrancar; desactivado con perfil `test`).                                                                                                                                                                                                          |
-| Herramientas          | Maven Wrapper (`mvnw`), `docker-compose.yml` con MySQL + Keycloak, scripts `keycloak/setup-realm.sh`/`.ps1` (crean realm + client + roles `admin`/`user` + usuarios `tp3-user`/`tp4-user`), `dev-support/start-mysql.ps1` (Windows), colección Postman en **`API/`**.                              |
+| Herramientas          | Maven Wrapper (`mvnw`), `docker-compose.yml` con MySQL + Keycloak, scripts `keycloak/setup-realm.sh`/`.ps1` (crean realm + client + roles `admin`/`user` + usuarios `tp3-user`/`tp4-user`), `dev-support/start-mysql.ps1` (Windows), colección Postman en **`Postman/`**.                              |
 | Perfil opcional       | **`local`**: H2 en memoria para ejecutar sin MySQL (`application-local.properties`).                                                                                                                                                                                                              |
 
 ---
@@ -677,7 +677,7 @@ Para que cualquier persona (o un proceso de revisión) pueda reproducir el traba
 - [x] Configuración de conexión coherente (`application.properties` y, si aplica, `application-local.properties`).
 - [x] `docker-compose.yml` con MySQL, Keycloak y base Postgres de Keycloak.
 - [x] Scripts de setup de Keycloak (`keycloak/setup-realm.sh` y `keycloak/setup-realm.ps1`) para dejar realm/client/usuario listos vía Admin REST API.
-- [x] Colección **Postman** (y environment) en **`API/`** para probar autenticación y todos los flujos.
+- [x] Colección **Postman** (y environment) en **`Postman/`** para probar autenticación y todos los flujos.
 - [x] **`.gitignore`** adecuado (por ejemplo excluir `target/`, datos locales de MySQL embebidos si los hubiera).
 
 Si tu institución pide **un ZIP en una plataforma**, un **nombre de repositorio** (`pdyc2026-[sede]-[grupo]`, etc.) o **repositorio privado con colaboradores**, aplicá esas reglas **además** de lo anterior; no forman parte del código en sí.
@@ -872,7 +872,7 @@ Deberías ver JSON (lista de artistas, eventos o usuarios). Sin token válido, S
 
 ### Paso 7 — Probar con Postman
 
-1. Abrí **Postman** → **Import** → subí **solo** **`API/Greater-Events.postman_collection.json`** (autocontenida; no hace falta environment).
+1. Abrí **Postman** → **Import** → subí **solo** **`Postman/Greater-Events.postman_collection.json`** (autocontenida; no hace falta environment).
 2. Las variables **`baseUrl`** (`http://localhost:8081`) y **`keycloakClientSecret`** (`pdyc-secret-dev`) ya vienen cargadas dentro de la colección.
 3. En la pestaña **Authorization** de la carpeta, Auth Type **OAuth 2.0**, usá **Get New Access Token**. La colección ya trae Authorization Code, callback `https://oauth.pstmn.io/v1/callback`, Auth URL, Access Token URL, Client ID `pdyc`, scope `openid` y client authentication en body.
 6. Iniciá sesión con el usuario creado en Keycloak y usá el token obtenido para ejecutar las requests.
