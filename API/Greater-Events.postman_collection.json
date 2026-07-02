@@ -2,18 +2,11 @@
   "info": {
     "_postman_id": "greater-events-postman-2026",
     "name": "Greater Events",
-    "description": "# Greater Events — Colección de pruebas (TP5 Microservicios)\n\n**Importá solo este archivo.** Todas las variables están incluidas en la colección.\n\n## Antes de probar\n\n1. Levantar el stack completo:\n   ```bash\n   ./dev-support/start-tp5.sh\n   ```\n2. Esperar ~2-3 minutos (Docker + Eureka + microservicios + Gateway).\n3. Gateway en `http://localhost:8081` — **todas las requests pasan por ahí**.\n\n## Credenciales\n\n| Rol | Usuario | Password |\n|-----|---------|----------|\n| admin | `tp3-user` | `tp3pass` |\n| user  | `tp4-user` | `tp4pass` |\n\n## Cómo obtener token OAuth2\n\n1. Abrí la carpeta **2 — End-user** o **3 — Admin**.\n2. Pestaña **Authorization** → tipo **OAuth 2.0**.\n3. **Get New Access Token** → login con las credenciales de arriba.\n4. **Use Token** → ejecutá los requests de esa carpeta.\n\n## Flujo demo\n\nEjecutá en orden la carpeta **Flujo demo (en orden)**.\n\n## Datos seed\n\n- Evento `1` = tentative (público devuelve 404)\n- Evento `2` = confirmed (favoritos / notificaciones)\n- Evento `3` = rescheduled\n- Artista `1` = Los Planetarios (activo)\n- Artista `6` = inactivo",
+    "description": "# Greater Events — Colección de pruebas (TP5 Microservicios)\n\n**Importá solo este archivo.** Todas las variables están incluidas en la colección.\n\n## Antes de probar\n\n1. Levantar el stack completo:\n   ```bash\n   ./dev-support/start-tp5.sh\n   ```\n2. Esperar ~2-3 minutos (Docker + Eureka + microservicios + Gateway).\n3. Gateway en `http://localhost:8081` — **todas las requests pasan por ahí**.\n\n## Credenciales\n\n| Rol | Usuario | Password |\n|-----|---------|----------|\n| admin | `tp3-user` | `tp3pass` |\n| user  | `tp4-user` | `tp4pass` |\n\n## Cómo autenticarse (automático, sin navegador)\n\nEn la carpeta **0 — Autenticación** corré los dos logins una sola vez:\n- **Login admin** → guarda `accessTokenAdmin`.\n- **Login end-user** → guarda `accessTokenUser`.\n\nLa carpeta **3 — Admin** usa `{{accessTokenAdmin}}` y la **2 — End-user** usa `{{accessTokenUser}}`, así los tokens **no se pisan**.\n\n## Flujo demo\n\nEjecutá en orden la carpeta **Flujo demo (en orden)**.\n\n## Datos seed\n\n- Evento `1` = tentative (público devuelve 404)\n- Evento `2` = confirmed (favoritos / notificaciones)\n- Evento `3` = rescheduled\n- Artista `1` = Los Planetarios (activo)\n- Artista `6` = inactivo",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
-    "type": "bearer",
-    "bearer": [
-      {
-        "key": "token",
-        "value": "{{accessToken}}",
-        "type": "string"
-      }
-    ]
+    "type": "noauth"
   },
   "variable": [
     {
@@ -117,11 +110,19 @@
       "value": "1"
     },
     {
-      "key": "accessToken",
+      "key": "accessTokenAdmin",
       "value": ""
     },
     {
-      "key": "refreshToken",
+      "key": "refreshTokenAdmin",
+      "value": ""
+    },
+    {
+      "key": "accessTokenUser",
+      "value": ""
+    },
+    {
+      "key": "refreshTokenUser",
       "value": ""
     }
   ],
@@ -131,10 +132,10 @@
       "auth": {
         "type": "noauth"
       },
-      "description": "Corré **Login admin** o **Login end-user**: el token se guarda en el environment y en la colección (variable `accessToken`). **Todos los endpoints protegidos usan `{{accessToken}}` automáticamente** — no hace falta navegador ni Get New Access Token.\n\nRequiere Direct Access Grants ON en el client `pdyc` (ya habilitado en local). Cambiá de rol simplemente corriendo el otro Login.",
+      "description": "Corré **Login admin** y **Login end-user** (una vez cada uno). Guardan tokens separados: `accessTokenAdmin` y `accessTokenUser` (más sus refresh), así no se pisan. La carpeta 3 usa el de admin y la 2 el de user automáticamente. Requiere Direct Access Grants ON en el client `pdyc`.",
       "item": [
         {
-          "name": "Login admin (tp3-user) → guarda accessToken/refreshToken",
+          "name": "Login admin (adminUsername) → guarda accessTokenAdmin",
           "event": [
             {
               "listen": "test",
@@ -144,11 +145,11 @@
                   "pm.test('200 OK', () => pm.response.to.have.status(200));",
                   "if (pm.response.code === 200) {",
                   "  const j = pm.response.json();",
-                  "  pm.collectionVariables.set('accessToken', j.access_token);",
-                  "  pm.collectionVariables.set('refreshToken', j.refresh_token);",
-                  "  pm.environment.set('accessToken', j.access_token);",
-                  "  pm.environment.set('refreshToken', j.refresh_token);",
-                  "  console.log('Token ADMIN guardado (colección + environment). Expira en', j.expires_in, 's');",
+                  "  pm.collectionVariables.set('accessTokenAdmin', j.access_token);",
+                  "  pm.collectionVariables.set('refreshTokenAdmin', j.refresh_token);",
+                  "  pm.environment.set('accessTokenAdmin', j.access_token);",
+                  "  pm.environment.set('refreshTokenAdmin', j.refresh_token);",
+                  "  console.log('Token ADMIN guardado en accessTokenAdmin. Expira en', j.expires_in, 's');",
                   "}"
                 ]
               }
@@ -195,11 +196,11 @@
               ]
             },
             "url": "{{keycloakTokenUrl}}",
-            "description": "Login de tp3-user (rol admin). Guarda accessToken y refreshToken en la colección."
+            "description": "Login admin. Guarda accessTokenAdmin y refreshTokenAdmin en la colección y el environment."
           }
         },
         {
-          "name": "Login end-user (tp4-user) → guarda accessToken/refreshToken",
+          "name": "Login end-user (endUserUsername) → guarda accessTokenUser",
           "event": [
             {
               "listen": "test",
@@ -209,11 +210,11 @@
                   "pm.test('200 OK', () => pm.response.to.have.status(200));",
                   "if (pm.response.code === 200) {",
                   "  const j = pm.response.json();",
-                  "  pm.collectionVariables.set('accessToken', j.access_token);",
-                  "  pm.collectionVariables.set('refreshToken', j.refresh_token);",
-                  "  pm.environment.set('accessToken', j.access_token);",
-                  "  pm.environment.set('refreshToken', j.refresh_token);",
-                  "  console.log('Token USER guardado (colección + environment). Expira en', j.expires_in, 's');",
+                  "  pm.collectionVariables.set('accessTokenUser', j.access_token);",
+                  "  pm.collectionVariables.set('refreshTokenUser', j.refresh_token);",
+                  "  pm.environment.set('accessTokenUser', j.access_token);",
+                  "  pm.environment.set('refreshTokenUser', j.refresh_token);",
+                  "  console.log('Token USER guardado en accessTokenUser. Expira en', j.expires_in, 's');",
                   "}"
                 ]
               }
@@ -260,11 +261,11 @@
               ]
             },
             "url": "{{keycloakTokenUrl}}",
-            "description": "Login de tp4-user (rol user). Guarda accessToken y refreshToken en la colección."
+            "description": "Login end-user. Guarda accessTokenUser y refreshTokenUser en la colección y el environment."
           }
         },
         {
-          "name": "Refresh access token → actualiza accessToken/refreshToken",
+          "name": "Refresh admin → actualiza accessTokenAdmin",
           "event": [
             {
               "listen": "test",
@@ -274,10 +275,10 @@
                   "pm.test('200 OK', () => pm.response.to.have.status(200));",
                   "if (pm.response.code === 200) {",
                   "  const j = pm.response.json();",
-                  "  pm.collectionVariables.set('accessToken', j.access_token);",
-                  "  pm.environment.set('accessToken', j.access_token);",
-                  "  if (j.refresh_token) { pm.collectionVariables.set('refreshToken', j.refresh_token); pm.environment.set('refreshToken', j.refresh_token); }",
-                  "  console.log('Token renovado sin re-login (colección + environment).');",
+                  "  pm.collectionVariables.set('accessTokenAdmin', j.access_token);",
+                  "  pm.environment.set('accessTokenAdmin', j.access_token);",
+                  "  if (j.refresh_token) { pm.collectionVariables.set('refreshTokenAdmin', j.refresh_token); pm.environment.set('refreshTokenAdmin', j.refresh_token); }",
+                  "  console.log('Token renovado sin re-login.');",
                   "}"
                 ]
               }
@@ -311,12 +312,68 @@
                 },
                 {
                   "key": "refresh_token",
-                  "value": "{{refreshToken}}"
+                  "value": "{{refreshTokenAdmin}}"
                 }
               ]
             },
             "url": "{{keycloakTokenUrl}}",
-            "description": "Usa el refreshToken guardado por un login previo para obtener un access_token nuevo sin volver a ingresar credenciales (grant refresh_token, Anexo TP4)."
+            "description": "Renueva accessTokenAdmin usando refreshTokenAdmin sin volver a ingresar credenciales."
+          }
+        },
+        {
+          "name": "Refresh end-user → actualiza accessTokenUser",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "  const j = pm.response.json();",
+                  "  pm.collectionVariables.set('accessTokenUser', j.access_token);",
+                  "  pm.environment.set('accessTokenUser', j.access_token);",
+                  "  if (j.refresh_token) { pm.collectionVariables.set('refreshTokenUser', j.refresh_token); pm.environment.set('refreshTokenUser', j.refresh_token); }",
+                  "  console.log('Token renovado sin re-login.');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "refresh_token"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{keycloakClientId}}"
+                },
+                {
+                  "key": "client_secret",
+                  "value": "{{keycloakClientSecret}}"
+                },
+                {
+                  "key": "refresh_token",
+                  "value": "{{refreshTokenUser}}"
+                }
+              ]
+            },
+            "url": "{{keycloakTokenUrl}}",
+            "description": "Renueva accessTokenUser usando refreshTokenUser sin volver a ingresar credenciales."
           }
         }
       ]
@@ -419,7 +476,7 @@
     },
     {
       "name": "2 — End-user (rol user, OAuth2)",
-      "description": "Corré primero **0 — Autenticación → Login end-user (tp4-user)**. Estos endpoints usan `{{accessToken}}` (rol user) automáticamente.",
+      "description": "Corré primero **0 — Autenticación → Login end-user (tp4-user)**. Estos endpoints usan `{{accessTokenUser}}` automáticamente.",
       "item": [
         {
           "name": "Following",
@@ -567,11 +624,21 @@
             }
           ]
         }
-      ]
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{accessTokenUser}}",
+            "type": "string"
+          }
+        ]
+      }
     },
     {
       "name": "3 — Admin (rol admin, OAuth2)",
-      "description": "Corré primero **0 — Autenticación → Login admin (tp3-user)**. Estos endpoints usan `{{accessToken}}` (rol admin) automáticamente.",
+      "description": "Corré primero **0 — Autenticación → Login admin (tp3-user)**. Estos endpoints usan `{{accessTokenAdmin}}` automáticamente.",
       "item": [
         {
           "name": "Admin Users (Keycloak)",
@@ -820,11 +887,21 @@
             }
           ]
         }
-      ]
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{accessTokenAdmin}}",
+            "type": "string"
+          }
+        ]
+      }
     },
     {
       "name": "Flujo demo (en orden)",
-      "description": "Automatizado con `{{accessToken}}`. Antes de los pasos de **user** (3, 4, 5, 7, 8) corré **Login end-user**; antes del **Paso 6** (admin) corré **Login admin**. Cada paso indica el rol.",
+      "description": "Automatizado: cada paso usa el token del rol correspondiente (`{{accessTokenUser}}` o `{{accessTokenAdmin}}`). Antes de los pasos de **user** (3, 4, 5, 7, 8) corré **Login end-user**; antes del **Paso 6** (admin) corré **Login admin**.",
       "item": [
         {
           "name": "Paso 1 — List active artists (público)",
@@ -871,7 +948,17 @@
               "mode": "raw",
               "raw": "{\n  \"artist_id\": 1\n}"
             },
-            "url": "{{baseUrl}}/me/following"
+            "url": "{{baseUrl}}/me/following",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessTokenUser}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -888,14 +975,34 @@
               "mode": "raw",
               "raw": "{\n  \"event_id\": 20\n}"
             },
-            "url": "{{baseUrl}}/me/favorite-events"
+            "url": "{{baseUrl}}/me/favorite-events",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessTokenUser}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
           "name": "Paso 5 — Events de artistas seguidos (tp4-user)",
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/me/following/events"
+            "url": "{{baseUrl}}/me/following/events",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessTokenUser}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -913,7 +1020,17 @@
               "raw": "{\n  \"start_date\": \"2030-05-10T21:00:00\"\n}"
             },
             "url": "{{baseUrl}}/admin/events/20/rescheduled",
-            "description": "Reprograma el evento 20 (favorito de tp4-user) → dispara la notificación vía RabbitMQ. Esperá 1-2 segundos. Se usa reschedule (no cancel) para que el evento siga vivo y puedas repetir la demo en los ensayos."
+            "description": "Reprograma el evento 20 (favorito de tp4-user) → dispara la notificación vía RabbitMQ. Esperá 1-2 segundos. Se usa reschedule (no cancel) para que el evento siga vivo y puedas repetir la demo en los ensayos.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessTokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -935,14 +1052,34 @@
           ],
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/me/notifications"
+            "url": "{{baseUrl}}/me/notifications",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessTokenUser}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
           "name": "Paso 8 — Mark notification read (tp4-user)",
           "request": {
             "method": "PUT",
-            "url": "{{baseUrl}}/me/notifications/{{notificationId}}/read"
+            "url": "{{baseUrl}}/me/notifications/{{notificationId}}/read",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessTokenUser}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         }
       ]
@@ -970,7 +1107,10 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/admin/artists",
-            "description": "Sin Authorization header. El microservicio catalog responde 401 (el Gateway deja pasar la request anónima)."
+            "description": "Sin Authorization header. El microservicio catalog responde 401 (el Gateway deja pasar la request anónima).",
+            "auth": {
+              "type": "noauth"
+            }
           }
         },
         {
@@ -992,7 +1132,10 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/me/notifications",
-            "description": "Sin token. notification-service responde 401."
+            "description": "Sin token. notification-service responde 401.",
+            "auth": {
+              "type": "noauth"
+            }
           }
         },
         {
@@ -1056,7 +1199,17 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/admin/artists",
-            "description": "Get New Access Token logueando con tp4-user / tp4pass (rol user). Token válido pero rol insuficiente para /admin/** → 403 Forbidden."
+            "description": "Get New Access Token logueando con tp4-user / tp4pass (rol user). Token válido pero rol insuficiente para /admin/** → 403 Forbidden.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessTokenUser}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -1120,7 +1273,17 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/me/notifications",
-            "description": "Get New Access Token logueando con tp3-user / tp3pass (rol admin). Rol admin no puede usar /me/** → 403 Forbidden."
+            "description": "Get New Access Token logueando con tp3-user / tp3pass (rol admin). Rol admin no puede usar /me/** → 403 Forbidden.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessTokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -1142,7 +1305,10 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/events/{{publicEventIdTentative}}",
-            "description": "El evento 1 está en estado tentative; el catálogo público nunca lo expone → 404 Not Found."
+            "description": "El evento 1 está en estado tentative; el catálogo público nunca lo expone → 404 Not Found.",
+            "auth": {
+              "type": "noauth"
+            }
           }
         },
         {
@@ -1174,7 +1340,10 @@
               "raw": "{\n  \"username\": \"demo.user\",\n  \"email\": \"demo.user@example.com\",\n  \"password\": \"Secret123!\",\n  \"first_name\": \"Demo\",\n  \"last_name\": \"User\"\n}"
             },
             "url": "{{baseUrl}}/auth/register",
-            "description": "Ejecutar DESPUÉS de 'Register end user' (carpeta 1). Mismo username/email → 409 Conflict (AuthService valida unicidad y lanza ConflictException)."
+            "description": "Ejecutar DESPUÉS de 'Register end user' (carpeta 1). Mismo username/email → 409 Conflict (AuthService valida unicidad y lanza ConflictException).",
+            "auth": {
+              "type": "noauth"
+            }
           }
         },
         {
@@ -1248,7 +1417,17 @@
               "raw": "{\n  \"artist_id\": {{artistIdInactive}}\n}"
             },
             "url": "{{baseUrl}}/me/following",
-            "description": "Artista 6 está inactivo (active=false). Regla de negocio: no se puede seguir un artista inactivo → 400 Bad Request."
+            "description": "Artista 6 está inactivo (active=false). Regla de negocio: no se puede seguir un artista inactivo → 400 Bad Request.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessTokenUser}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -1322,7 +1501,17 @@
               "raw": "{\n  \"event_id\": {{publicEventIdTentative}}\n}"
             },
             "url": "{{baseUrl}}/me/favorite-events",
-            "description": "Evento 1 es tentative. No se puede marcar favorito un evento tentative → 400 Bad Request."
+            "description": "Evento 1 es tentative. No se puede marcar favorito un evento tentative → 400 Bad Request.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessTokenUser}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         },
         {
@@ -1396,7 +1585,17 @@
               "raw": "{\n  \"name\": \"No permitido\",\n  \"genre\": \"pop\"\n}"
             },
             "url": "{{baseUrl}}/admin/artists/{{artistIdInLineup}}",
-            "description": "Artista 1 ya participó en eventos. Regla: no se edita, se desactiva → 400 Bad Request."
+            "description": "Artista 1 ya participó en eventos. Regla: no se edita, se desactiva → 400 Bad Request.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessTokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            }
           }
         }
       ]
