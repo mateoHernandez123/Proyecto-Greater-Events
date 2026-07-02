@@ -1,6 +1,7 @@
 package ar.edu.unnoba.pdyc2026.usersocial.service;
 
 import ar.edu.unnoba.pdyc2026.common.exception.BusinessRuleException;
+import ar.edu.unnoba.pdyc2026.common.exception.ConflictException;
 import ar.edu.unnoba.pdyc2026.common.exception.ResourceNotFoundException;
 import ar.edu.unnoba.pdyc2026.usersocial.config.KeycloakAdminProperties;
 import ar.edu.unnoba.pdyc2026.usersocial.dto.AdminUserCreateRequest;
@@ -74,7 +75,7 @@ public class AdminUserService {
         String createdId;
         try (Response response = usersResource().create(user)) {
             if (response.getStatus() == Response.Status.CONFLICT.getStatusCode()) {
-                throw new BusinessRuleException("Admin user already exists: " + request.username());
+                throw new ConflictException("Admin user already exists: " + request.username());
             }
             if (response.getStatus() != Response.Status.CREATED.getStatusCode()) {
                 throw new BusinessRuleException("Keycloak rejected user creation: HTTP " + response.getStatus());

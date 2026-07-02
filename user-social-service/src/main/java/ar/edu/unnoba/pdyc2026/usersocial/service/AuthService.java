@@ -1,6 +1,7 @@
 package ar.edu.unnoba.pdyc2026.usersocial.service;
 
 import ar.edu.unnoba.pdyc2026.common.exception.BusinessRuleException;
+import ar.edu.unnoba.pdyc2026.common.exception.ConflictException;
 import ar.edu.unnoba.pdyc2026.usersocial.config.KeycloakAdminProperties;
 import ar.edu.unnoba.pdyc2026.usersocial.dto.RegisterUserRequest;
 import ar.edu.unnoba.pdyc2026.usersocial.dto.RegisterUserResponse;
@@ -50,10 +51,10 @@ public class AuthService {
         String username = request.username().trim();
         String email = request.email().trim().toLowerCase();
         if (userRepository.existsByUsername(username)) {
-            throw new BusinessRuleException("Username already in use: " + username);
+            throw new ConflictException("Username already in use: " + username);
         }
         if (userRepository.existsByEmail(email)) {
-            throw new BusinessRuleException("Email already in use: " + email);
+            throw new ConflictException("Email already in use: " + email);
         }
 
         UserRepresentation kcUser = new UserRepresentation();
@@ -74,7 +75,7 @@ public class AuthService {
         String keycloakId;
         try (Response response = users.create(kcUser)) {
             if (response.getStatus() == Response.Status.CONFLICT.getStatusCode()) {
-                throw new BusinessRuleException("User already exists in Keycloak: " + username);
+                throw new ConflictException("User already exists in Keycloak: " + username);
             }
             if (response.getStatus() != Response.Status.CREATED.getStatusCode()) {
                 throw new BusinessRuleException(

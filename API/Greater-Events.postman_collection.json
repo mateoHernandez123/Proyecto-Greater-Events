@@ -1,36 +1,349 @@
 {
   "info": {
-    "_postman_id": "a1b2c3d4-pdyc-greater-events",
-    "name": "Greater Events — API",
-    "description": "Spring Boot 3.4 — Microservicios Spring Cloud (TP5). Todas las requests entran por el **API Gateway** en `{{baseUrl}}` (`http://localhost:8081`), que valida el JWT de forma perimetral y lo reenvia (TokenRelay) al microservicio correspondiente (catalog-event, user-social, notification). Mantiene TP2/TP3/TP4.\n\n**Tres niveles de acceso (TP4):**\n- **Publicos** (sin token): `POST /auth/register`, `GET /artists`, `GET /artists/{id}/events`, `GET /events`, `GET /events/{id}`. Nunca devuelven eventos en estado `tentative`.\n- **Admin** (`/admin/**`): requiere Bearer JWT con realm role **admin** (claim `realm_access.roles`). Generar token con flujo Authorization Code usando `adminUsername` / `adminPassword` o desde el folder **Helpers**.\n- **End-user** (`/me/**`): requiere Bearer JWT con realm role **user**. Mismo flujo OAuth2, login con `endUserUsername` / `endUserPassword`.\n\n**Como obtener un token desde Postman:**\n1. Importar `Greater-Events-Local.postman_environment.json` y seleccionar **Greater Events — Local**.\n2. Sobre el folder **Admin endpoints** o **End-user endpoints**, abrir la pestana *Authorization* -> *Get New Access Token*. Postman ya tiene los valores pre-cargados desde el environment.\n3. Loguear con las credenciales correspondientes (admin: `tp3-user/tp3pass`; end-user: `tp4-user/tp4pass`).\n4. *Use Token* y disparar requests.\n\n**Errores estandar:** body JSON `{\"error\":\"mensaje\"}` con **400** (reglas/validacion), **401** (sin token / invalido), **403** (token valido pero rol insuficiente), **404** (no encontrado), **409** (username/email ya registrado).\n\nDocumentacion completa en el `README.md`.",
+    "_postman_id": "greater-events-postman-2026",
+    "name": "Greater Events",
+    "description": "# Greater Events — Colección de pruebas (TP5 Microservicios)\n\n**Importá solo este archivo.** Todas las variables están incluidas en la colección.\n\n## Antes de probar\n\n1. Levantar el stack completo:\n   ```bash\n   ./dev-support/start-tp5.sh\n   ```\n2. Esperar ~2-3 minutos (Docker + Eureka + microservicios + Gateway).\n3. Gateway en `http://localhost:8081` — **todas las requests pasan por ahí**.\n\n## Credenciales\n\n| Rol | Usuario | Password |\n|-----|---------|----------|\n| admin | `tp3-user` | `tp3pass` |\n| user  | `tp4-user` | `tp4pass` |\n\n## Cómo obtener token OAuth2\n\n1. Abrí la carpeta **2 — End-user** o **3 — Admin**.\n2. Pestaña **Authorization** → tipo **OAuth 2.0**.\n3. **Get New Access Token** → login con las credenciales de arriba.\n4. **Use Token** → ejecutá los requests de esa carpeta.\n\n## Flujo demo\n\nEjecutá en orden la carpeta **Flujo demo (en orden)**.\n\n## Datos seed\n\n- Evento `1` = tentative (público devuelve 404)\n- Evento `2` = confirmed (favoritos / notificaciones)\n- Evento `3` = rescheduled\n- Artista `1` = Los Planetarios (activo)\n- Artista `6` = inactivo",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
   "variable": [
-    { "key": "baseUrl", "value": "http://localhost:8081" },
-    { "key": "callbackUrl", "value": "https://oauth.pstmn.io/v1/callback" },
-    { "key": "keycloakAuthUrl", "value": "http://localhost:8080/realms/unnoba/protocol/openid-connect/auth" },
-    { "key": "keycloakTokenUrl", "value": "http://localhost:8080/realms/unnoba/protocol/openid-connect/token" },
-    { "key": "keycloakClientId", "value": "pdyc" },
-    { "key": "keycloakClientSecret", "value": "pdyc-secret-dev" }
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8081"
+    },
+    {
+      "key": "callbackUrl",
+      "value": "https://oauth.pstmn.io/v1/callback"
+    },
+    {
+      "key": "keycloakAuthUrl",
+      "value": "http://localhost:8080/realms/unnoba/protocol/openid-connect/auth"
+    },
+    {
+      "key": "keycloakTokenUrl",
+      "value": "http://localhost:8080/realms/unnoba/protocol/openid-connect/token"
+    },
+    {
+      "key": "keycloakClientId",
+      "value": "pdyc"
+    },
+    {
+      "key": "keycloakClientSecret",
+      "value": "pdyc-secret-dev"
+    },
+    {
+      "key": "adminUsername",
+      "value": "tp3-user"
+    },
+    {
+      "key": "adminPassword",
+      "value": "tp3pass"
+    },
+    {
+      "key": "endUserUsername",
+      "value": "tp4-user"
+    },
+    {
+      "key": "endUserPassword",
+      "value": "tp4pass"
+    },
+    {
+      "key": "eventId",
+      "value": "1"
+    },
+    {
+      "key": "eventIdConfirmed",
+      "value": "15"
+    },
+    {
+      "key": "eventIdRescheduled",
+      "value": "6"
+    },
+    {
+      "key": "eventIdCancelled",
+      "value": "2"
+    },
+    {
+      "key": "publicEventId",
+      "value": "20"
+    },
+    {
+      "key": "publicEventIdTentative",
+      "value": "1"
+    },
+    {
+      "key": "publicArtistId",
+      "value": "1"
+    },
+    {
+      "key": "followArtistId",
+      "value": "1"
+    },
+    {
+      "key": "favoriteEventId",
+      "value": "20"
+    },
+    {
+      "key": "artistId",
+      "value": "3"
+    },
+    {
+      "key": "artistIdInLineup",
+      "value": "1"
+    },
+    {
+      "key": "artistIdFree",
+      "value": "7"
+    },
+    {
+      "key": "artistIdInactive",
+      "value": "6"
+    },
+    {
+      "key": "adminUserId",
+      "value": ""
+    },
+    {
+      "key": "notificationId",
+      "value": "1"
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "refreshToken",
+      "value": ""
+    }
   ],
-  "auth": { "type": "noauth" },
   "item": [
     {
-      "name": "Public endpoints (sin token)",
-      "auth": { "type": "noauth" },
-      "description": "Catalogo publico y registro de usuarios finales. No requieren autenticacion.",
+      "name": "0 — Autenticación (obtener token)",
+      "auth": {
+        "type": "noauth"
+      },
+      "description": "Corré **Login admin** o **Login end-user**: el token se guarda en el environment y en la colección (variable `accessToken`). **Todos los endpoints protegidos usan `{{accessToken}}` automáticamente** — no hace falta navegador ni Get New Access Token.\n\nRequiere Direct Access Grants ON en el client `pdyc` (ya habilitado en local). Cambiá de rol simplemente corriendo el otro Login.",
+      "item": [
+        {
+          "name": "Login admin (tp3-user) → guarda accessToken/refreshToken",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "  const j = pm.response.json();",
+                  "  pm.collectionVariables.set('accessToken', j.access_token);",
+                  "  pm.collectionVariables.set('refreshToken', j.refresh_token);",
+                  "  pm.environment.set('accessToken', j.access_token);",
+                  "  pm.environment.set('refreshToken', j.refresh_token);",
+                  "  console.log('Token ADMIN guardado (colección + environment). Expira en', j.expires_in, 's');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "password"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{keycloakClientId}}"
+                },
+                {
+                  "key": "client_secret",
+                  "value": "{{keycloakClientSecret}}"
+                },
+                {
+                  "key": "username",
+                  "value": "{{adminUsername}}"
+                },
+                {
+                  "key": "password",
+                  "value": "{{adminPassword}}"
+                },
+                {
+                  "key": "scope",
+                  "value": "openid"
+                }
+              ]
+            },
+            "url": "{{keycloakTokenUrl}}",
+            "description": "Login de tp3-user (rol admin). Guarda accessToken y refreshToken en la colección."
+          }
+        },
+        {
+          "name": "Login end-user (tp4-user) → guarda accessToken/refreshToken",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "  const j = pm.response.json();",
+                  "  pm.collectionVariables.set('accessToken', j.access_token);",
+                  "  pm.collectionVariables.set('refreshToken', j.refresh_token);",
+                  "  pm.environment.set('accessToken', j.access_token);",
+                  "  pm.environment.set('refreshToken', j.refresh_token);",
+                  "  console.log('Token USER guardado (colección + environment). Expira en', j.expires_in, 's');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "password"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{keycloakClientId}}"
+                },
+                {
+                  "key": "client_secret",
+                  "value": "{{keycloakClientSecret}}"
+                },
+                {
+                  "key": "username",
+                  "value": "{{endUserUsername}}"
+                },
+                {
+                  "key": "password",
+                  "value": "{{endUserPassword}}"
+                },
+                {
+                  "key": "scope",
+                  "value": "openid"
+                }
+              ]
+            },
+            "url": "{{keycloakTokenUrl}}",
+            "description": "Login de tp4-user (rol user). Guarda accessToken y refreshToken en la colección."
+          }
+        },
+        {
+          "name": "Refresh access token → actualiza accessToken/refreshToken",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "  const j = pm.response.json();",
+                  "  pm.collectionVariables.set('accessToken', j.access_token);",
+                  "  pm.environment.set('accessToken', j.access_token);",
+                  "  if (j.refresh_token) { pm.collectionVariables.set('refreshToken', j.refresh_token); pm.environment.set('refreshToken', j.refresh_token); }",
+                  "  console.log('Token renovado sin re-login (colección + environment).');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "refresh_token"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{keycloakClientId}}"
+                },
+                {
+                  "key": "client_secret",
+                  "value": "{{keycloakClientSecret}}"
+                },
+                {
+                  "key": "refresh_token",
+                  "value": "{{refreshToken}}"
+                }
+              ]
+            },
+            "url": "{{keycloakTokenUrl}}",
+            "description": "Usa el refreshToken guardado por un login previo para obtener un access_token nuevo sin volver a ingresar credenciales (grant refresh_token, Anexo TP4)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "1 — Públicos (sin token)",
+      "auth": {
+        "type": "noauth"
+      },
+      "description": "Catálogo público y registro. No requieren autenticación.",
       "item": [
         {
           "name": "Register end user",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"juan.perez\",\n  \"email\": \"juan.perez@example.com\",\n  \"password\": \"Secret123!\",\n  \"first_name\": \"Juan\",\n  \"last_name\": \"Perez\"\n}"
+              "raw": "{\n  \"username\": \"demo.user\",\n  \"email\": \"demo.user@example.com\",\n  \"password\": \"Secret123!\",\n  \"first_name\": \"Demo\",\n  \"last_name\": \"User\"\n}"
             },
             "url": "{{baseUrl}}/auth/register",
-            "description": "`POST /auth/register` — **201**. Crea el usuario en Keycloak (rol `user`) y en la DB local. `409` si username o email ya estan registrados."
+            "description": "POST /auth/register — 201. 409 si username o email ya existen (validación de unicidad)."
           }
         },
         {
@@ -38,7 +351,7 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/artists",
-            "description": "`GET /artists` — todos los artistas con `active=true`, ordenados por nombre."
+            "description": "GET /artists — artistas activos, ordenados por nombre."
           }
         },
         {
@@ -46,7 +359,7 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/artists/{{publicArtistId}}/events",
-            "description": "`GET /artists/{id}/events` — proximos eventos del artista (solo `confirmed` o `rescheduled` y con fecha futura). `404` si el artista no existe o esta inactivo."
+            "description": "GET /artists/{id}/events — solo confirmed/rescheduled con fecha futura."
           }
         },
         {
@@ -54,150 +367,1036 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/events",
-            "description": "`GET /events` — eventos vigentes (`confirmed` o `rescheduled` con fecha futura), ordenados por proximidad de fecha. Nunca incluye `tentative`."
+            "description": "GET /events — eventos vigentes. Nunca incluye tentative."
           }
         },
         {
-          "name": "Get event by id",
+          "name": "Get confirmed event (público OK)",
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/events/{{publicEventId}}",
-            "description": "`GET /events/{id}` — detalle publico. Si el evento esta en estado `tentative` responde **404** (la consigna prohibe exponer informacion de eventos tentativos)."
+            "description": "GET /events/{id} — detalle de evento confirmado."
+          }
+        },
+        {
+          "name": "Get tentative event (debe ser 404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Tentative no expuesto', () => pm.response.to.have.status(404));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/events/{{publicEventIdTentative}}",
+            "description": "La consigna prohíbe exponer eventos tentative en endpoints públicos."
+          }
+        },
+        {
+          "name": "Admin sin token (debe ser 401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Sin token = 401', () => pm.response.to.have.status(401));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/admin/artists"
           }
         }
       ]
     },
     {
-      "name": "Admin endpoints (rol admin)",
-      "auth": {
-        "type": "oauth2",
-        "oauth2": [
-          { "key": "grant_type", "value": "authorization_code", "type": "string" },
-          { "key": "callbackUrl", "value": "{{callbackUrl}}", "type": "string" },
-          { "key": "authUrl", "value": "{{keycloakAuthUrl}}", "type": "string" },
-          { "key": "accessTokenUrl", "value": "{{keycloakTokenUrl}}", "type": "string" },
-          { "key": "clientId", "value": "{{keycloakClientId}}", "type": "string" },
-          { "key": "clientSecret", "value": "{{keycloakClientSecret}}", "type": "string" },
-          { "key": "scope", "value": "openid", "type": "string" },
-          { "key": "client_authentication", "value": "body", "type": "string" }
-        ]
-      },
-      "description": "Para todos los requests autenticate como **tp3-user / tp3pass** (rol `admin`).",
+      "name": "2 — End-user (rol user, OAuth2)",
+      "description": "Corré primero **0 — Autenticación → Login end-user (tp4-user)**. Estos endpoints usan `{{accessToken}}` (rol user) automáticamente.",
       "item": [
         {
-          "name": "Admin Users (Keycloak)",
+          "name": "Following",
           "item": [
-            { "name": "List admin users", "request": { "method": "GET", "url": "{{baseUrl}}/admin/users", "description": "`GET /admin/users` — lista usuarios de Keycloak." } },
-            { "name": "Get admin user by id", "request": { "method": "GET", "url": "{{baseUrl}}/admin/users/{{adminUserId}}", "description": "`GET /admin/users/{uuid}`. Copiar el `id` del create response." } },
             {
-              "name": "Create admin user",
+              "name": "List following",
               "request": {
-                "method": "POST",
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
-                "body": { "mode": "raw", "raw": "{\n  \"username\": \"admin-postman\",\n  \"password\": \"Admin123!\",\n  \"email\": \"admin-postman@example.com\",\n  \"first_name\": \"Admin\",\n  \"last_name\": \"Postman\",\n  \"enabled\": true,\n  \"temporary_password\": false\n}" },
-                "url": "{{baseUrl}}/admin/users",
-                "description": "`POST /admin/users` — **201**. TP4: ademas de crear el usuario en Keycloak le asigna automaticamente el realm role **admin**."
+                "method": "GET",
+                "url": "{{baseUrl}}/me/following"
               }
             },
-            { "name": "Delete admin user", "request": { "method": "DELETE", "url": "{{baseUrl}}/admin/users/{{adminUserId}}", "description": "`DELETE /admin/users/{uuid}` — **204**." } }
-          ]
-        },
-        {
-          "name": "Artists",
-          "item": [
-            { "name": "List artists", "request": { "method": "GET", "url": "{{baseUrl}}/admin/artists", "description": "`GET /admin/artists`" } },
-            { "name": "List artists (filter genre)", "request": { "method": "GET", "url": "{{baseUrl}}/admin/artists?genre=rock", "description": "Filtra por genero: rock | techno | pop | jazz | folk." } },
-            { "name": "Get artist", "request": { "method": "GET", "url": "{{baseUrl}}/admin/artists/{{artistIdInLineup}}" } },
-            { "name": "Create artist", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"Artista Postman\",\n  \"genre\": \"jazz\"\n}" }, "url": "{{baseUrl}}/admin/artists" } },
-            { "name": "Update artist", "request": { "method": "PUT", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"Nombre actualizado\",\n  \"genre\": \"pop\"\n}" }, "url": "{{baseUrl}}/admin/artists/{{artistIdFree}}" } },
-            { "name": "Delete artist", "request": { "method": "DELETE", "url": "{{baseUrl}}/admin/artists/{{artistIdFree}}" } }
-          ]
-        },
-        {
-          "name": "Events",
-          "item": [
-            { "name": "List events", "request": { "method": "GET", "url": "{{baseUrl}}/admin/events" } },
-            { "name": "List events (filter state)", "request": { "method": "GET", "url": "{{baseUrl}}/admin/events?state=tentative" } },
-            { "name": "Get event by id", "request": { "method": "GET", "url": "{{baseUrl}}/admin/events/{{eventId}}" } },
-            { "name": "Create event", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"Festival Demo\",\n  \"start_date\": \"2030-12-01T20:00:00\",\n  \"description\": \"Descripcion del evento\"\n}" }, "url": "{{baseUrl}}/admin/events" } },
-            { "name": "Update event", "request": { "method": "PUT", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"Festival Demo (editado)\",\n  \"start_date\": \"2030-12-02T21:00:00\",\n  \"description\": \"Nueva descripcion\"\n}" }, "url": "{{baseUrl}}/admin/events/{{eventId}}" } },
-            { "name": "Delete event", "request": { "method": "DELETE", "url": "{{baseUrl}}/admin/events/{{eventId}}" } },
-            { "name": "Add artist to event", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"artist_id\": {{artistId}}\n}" }, "url": "{{baseUrl}}/admin/events/{{eventId}}/artists" } },
-            { "name": "Remove artist from event", "request": { "method": "DELETE", "url": "{{baseUrl}}/admin/events/{{eventId}}/artists/{{artistIdInLineup}}" } },
-            { "name": "Confirm event", "request": { "method": "PUT", "url": "{{baseUrl}}/admin/events/{{eventId}}/confirmed", "description": "TP4: dispara notificaciones a usuarios con el evento favorito o con artistas seguidos en el lineup." } },
-            { "name": "Reschedule event", "request": { "method": "PUT", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"start_date\": \"2031-01-15T22:00:00\"\n}" }, "url": "{{baseUrl}}/admin/events/{{eventIdConfirmed}}/rescheduled", "description": "TP4: dispara notificaciones." } },
-            { "name": "Cancel event", "request": { "method": "PUT", "url": "{{baseUrl}}/admin/events/{{eventIdConfirmed}}/canceled", "description": "TP4: dispara notificaciones." } }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "End-user endpoints (rol user)",
-      "auth": {
-        "type": "oauth2",
-        "oauth2": [
-          { "key": "grant_type", "value": "authorization_code", "type": "string" },
-          { "key": "callbackUrl", "value": "{{callbackUrl}}", "type": "string" },
-          { "key": "authUrl", "value": "{{keycloakAuthUrl}}", "type": "string" },
-          { "key": "accessTokenUrl", "value": "{{keycloakTokenUrl}}", "type": "string" },
-          { "key": "clientId", "value": "{{keycloakClientId}}", "type": "string" },
-          { "key": "clientSecret", "value": "{{keycloakClientSecret}}", "type": "string" },
-          { "key": "scope", "value": "openid", "type": "string" },
-          { "key": "client_authentication", "value": "body", "type": "string" }
-        ]
-      },
-      "description": "Para todos los requests autenticate como **tp4-user / tp4pass** (rol `user`).",
-      "item": [
-        {
-          "name": "Following (artistas seguidos)",
-          "item": [
-            { "name": "List following", "request": { "method": "GET", "url": "{{baseUrl}}/me/following", "description": "`GET /me/following` — artistas que sigue el usuario autenticado." } },
-            { "name": "Follow artist", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"artist_id\": {{followArtistId}}\n}" }, "url": "{{baseUrl}}/me/following", "description": "`POST /me/following` — **201**. `400` si el artista esta inactivo o ya es seguido. `404` si no existe." } },
-            { "name": "Unfollow artist", "request": { "method": "DELETE", "url": "{{baseUrl}}/me/following/{{followArtistId}}", "description": "`DELETE /me/following/{artistId}` — **204**." } },
-            { "name": "Upcoming events from followed artists", "request": { "method": "GET", "url": "{{baseUrl}}/me/following/events", "description": "`GET /me/following/events` — proximos eventos (`confirmed` o `rescheduled` con fecha futura) donde participa alguno de los artistas seguidos, ordenados por fecha." } }
+            {
+              "name": "Follow artist",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"artist_id\": {{followArtistId}}\n}"
+                },
+                "url": "{{baseUrl}}/me/following"
+              }
+            },
+            {
+              "name": "Unfollow artist",
+              "request": {
+                "method": "DELETE",
+                "url": "{{baseUrl}}/me/following/{{followArtistId}}"
+              }
+            },
+            {
+              "name": "Upcoming events from followed artists",
+              "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/me/following/events",
+                "description": "Compone datos vía Feign con catalog-event-service."
+              }
+            }
           ]
         },
         {
           "name": "Favorite events",
           "item": [
-            { "name": "List favorite events", "request": { "method": "GET", "url": "{{baseUrl}}/me/favorite-events", "description": "`GET /me/favorite-events` — favoritos del usuario que aun esten vigentes." } },
-            { "name": "Add favorite event", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"event_id\": {{favoriteEventId}}\n}" }, "url": "{{baseUrl}}/me/favorite-events", "description": "`POST /me/favorite-events` — **201**. `400` si el evento es `tentative` o ya es favorito." } },
-            { "name": "Remove favorite event", "request": { "method": "DELETE", "url": "{{baseUrl}}/me/favorite-events/{{favoriteEventId}}", "description": "`DELETE /me/favorite-events/{eventId}` — **204**." } }
+            {
+              "name": "List favorite events",
+              "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/me/favorite-events"
+              }
+            },
+            {
+              "name": "Add favorite event",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"event_id\": {{favoriteEventId}}\n}"
+                },
+                "url": "{{baseUrl}}/me/favorite-events"
+              }
+            },
+            {
+              "name": "Remove favorite event",
+              "request": {
+                "method": "DELETE",
+                "url": "{{baseUrl}}/me/favorite-events/{{favoriteEventId}}"
+              }
+            }
           ]
         },
         {
-          "name": "Notifications",
+          "name": "Notifications (notification-service)",
           "item": [
-            { "name": "List notifications", "request": { "method": "GET", "url": "{{baseUrl}}/me/notifications", "description": "`GET /me/notifications` — lista todas las notificaciones del usuario." } },
-            { "name": "List unread notifications", "request": { "method": "GET", "url": "{{baseUrl}}/me/notifications?unread_only=true", "description": "Filtra solo las que no fueron marcadas como leidas." } },
-            { "name": "Mark notification as read (PATCH)", "request": { "method": "PATCH", "url": "{{baseUrl}}/me/notifications/{{notificationId}}", "header": [ { "key": "Content-Type", "value": "application/json" } ], "body": { "mode": "raw", "raw": "{\n  \"is_read\": true\n}" }, "description": "`PATCH /me/notifications/{id}` con body `{\"is_read\": true}` (Anexo TP4)." } },
-            { "name": "Mark notification as read (PUT alias)", "request": { "method": "PUT", "url": "{{baseUrl}}/me/notifications/{{notificationId}}/read" } },
-            { "name": "Delete notification", "request": { "method": "DELETE", "url": "{{baseUrl}}/me/notifications/{{notificationId}}", "description": "`DELETE /me/notifications/{id}` — elimina la notificacion del usuario." } }
+            {
+              "name": "List notifications",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 200) {",
+                      "  const data = pm.response.json();",
+                      "  if (Array.isArray(data) && data.length > 0) {",
+                      "    pm.collectionVariables.set('notificationId', String(data[0].id));",
+                      "  }",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/me/notifications"
+              }
+            },
+            {
+              "name": "List unread notifications",
+              "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/me/notifications?unread_only=true"
+              }
+            },
+            {
+              "name": "Mark notification as read (PATCH)",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"is_read\": true\n}"
+                },
+                "url": "{{baseUrl}}/me/notifications/{{notificationId}}"
+              }
+            },
+            {
+              "name": "Mark notification as read (PUT)",
+              "request": {
+                "method": "PUT",
+                "url": "{{baseUrl}}/me/notifications/{{notificationId}}/read"
+              }
+            },
+            {
+              "name": "Delete notification",
+              "request": {
+                "method": "DELETE",
+                "url": "{{baseUrl}}/me/notifications/{{notificationId}}"
+              }
+            }
           ]
         }
       ]
     },
     {
-      "name": "Helpers",
-      "auth": { "type": "noauth" },
-      "description": "Utilidades de autenticacion. El **Refresh access token** (Anexo TP4) renueva el access token sin reingresar credenciales usando el refresh token obtenido en el login.",
+      "name": "3 — Admin (rol admin, OAuth2)",
+      "description": "Corré primero **0 — Autenticación → Login admin (tp3-user)**. Estos endpoints usan `{{accessToken}}` (rol admin) automáticamente.",
       "item": [
         {
-          "name": "Refresh access token",
+          "name": "Admin Users (Keycloak)",
+          "item": [
+            {
+              "name": "List admin users",
+              "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/admin/users"
+              }
+            },
+            {
+              "name": "Create admin user",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 201) {",
+                      "  pm.collectionVariables.set('adminUserId', pm.response.json().id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"username\": \"admin-postman\",\n  \"password\": \"Admin123!\",\n  \"email\": \"admin-postman@example.com\",\n  \"first_name\": \"Admin\",\n  \"last_name\": \"Postman\",\n  \"enabled\": true,\n  \"temporary_password\": false\n}"
+                },
+                "url": "{{baseUrl}}/admin/users"
+              }
+            },
+            {
+              "name": "Get admin user by id",
+              "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/admin/users/{{adminUserId}}"
+              }
+            },
+            {
+              "name": "Delete admin user",
+              "request": {
+                "method": "DELETE",
+                "url": "{{baseUrl}}/admin/users/{{adminUserId}}"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Artists (catalog-event-service)",
+          "item": [
+            {
+              "name": "List artists",
+              "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/admin/artists"
+              }
+            },
+            {
+              "name": "List artists (genre=rock)",
+              "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/admin/artists?genre=rock"
+              }
+            },
+            {
+              "name": "Get artist",
+              "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/admin/artists/{{artistIdInLineup}}"
+              }
+            },
+            {
+              "name": "Create artist",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Artista Postman\",\n  \"genre\": \"jazz\"\n}"
+                },
+                "url": "{{baseUrl}}/admin/artists"
+              }
+            },
+            {
+              "name": "Update artist",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Nombre actualizado\",\n  \"genre\": \"pop\"\n}"
+                },
+                "url": "{{baseUrl}}/admin/artists/{{artistIdInLineup}}"
+              }
+            },
+            {
+              "name": "Delete artist",
+              "request": {
+                "method": "DELETE",
+                "url": "{{baseUrl}}/admin/artists/{{artistIdFree}}"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Events (catalog-event-service)",
+          "item": [
+            {
+              "name": "List events",
+              "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/admin/events"
+              }
+            },
+            {
+              "name": "List events (state=tentative)",
+              "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/admin/events?state=tentative"
+              }
+            },
+            {
+              "name": "Get event by id",
+              "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/admin/events/{{eventId}}"
+              }
+            },
+            {
+              "name": "Create event",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Festival Demo\",\n  \"start_date\": \"2030-12-01T20:00:00\",\n  \"description\": \"Descripcion del evento\"\n}"
+                },
+                "url": "{{baseUrl}}/admin/events"
+              }
+            },
+            {
+              "name": "Update event",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Festival Demo (editado)\",\n  \"start_date\": \"2030-12-02T21:00:00\",\n  \"description\": \"Nueva descripcion\"\n}"
+                },
+                "url": "{{baseUrl}}/admin/events/{{eventId}}"
+              }
+            },
+            {
+              "name": "Delete event",
+              "request": {
+                "method": "DELETE",
+                "url": "{{baseUrl}}/admin/events/{{eventId}}"
+              }
+            },
+            {
+              "name": "Add artist to event",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"artist_id\": {{artistId}}\n}"
+                },
+                "url": "{{baseUrl}}/admin/events/{{eventId}}/artists"
+              }
+            },
+            {
+              "name": "Remove artist from event",
+              "request": {
+                "method": "DELETE",
+                "url": "{{baseUrl}}/admin/events/{{eventId}}/artists/{{artistIdInLineup}}"
+              }
+            },
+            {
+              "name": "Confirm event",
+              "request": {
+                "method": "PUT",
+                "url": "{{baseUrl}}/admin/events/{{eventId}}/confirmed",
+                "description": "Publica mensaje en RabbitMQ → notification-service."
+              }
+            },
+            {
+              "name": "Reschedule event",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"start_date\": \"2031-01-15T22:00:00\"\n}"
+                },
+                "url": "{{baseUrl}}/admin/events/{{eventIdRescheduled}}/rescheduled"
+              }
+            },
+            {
+              "name": "Cancel event",
+              "request": {
+                "method": "PUT",
+                "url": "{{baseUrl}}/admin/events/{{eventIdConfirmed}}/canceled",
+                "description": "Dispara notificaciones async vía RabbitMQ."
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Flujo demo (en orden)",
+      "description": "Automatizado con `{{accessToken}}`. Antes de los pasos de **user** (3, 4, 5, 7, 8) corré **Login end-user**; antes del **Paso 6** (admin) corré **Login admin**. Cada paso indica el rol.",
+      "item": [
+        {
+          "name": "Paso 1 — List active artists (público)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/artists",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Paso 2 — Tentative = 404 (público)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404', () => pm.response.to.have.status(404));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/events/1",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Paso 3 — Follow artist (tp4-user)",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
-              "mode": "urlencoded",
-              "urlencoded": [
-                { "key": "grant_type", "value": "refresh_token" },
-                { "key": "client_id", "value": "{{keycloakClientId}}" },
-                { "key": "client_secret", "value": "{{keycloakClientSecret}}" },
-                { "key": "refresh_token", "value": "{{refreshToken}}" }
-              ]
+              "mode": "raw",
+              "raw": "{\n  \"artist_id\": 1\n}"
             },
-            "url": "{{keycloakTokenUrl}}",
-            "description": "`POST` al token endpoint de Keycloak con `grant_type=refresh_token` (Anexo TP4). Devuelve un nuevo `access_token` y un `refresh_token` rotado sin pedir usuario/contrasena. Pegar el refresh token recibido en el login en la variable de entorno `refreshToken`."
+            "url": "{{baseUrl}}/me/following"
+          }
+        },
+        {
+          "name": "Paso 4 — Add favorite event 20 (tp4-user)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_id\": 20\n}"
+            },
+            "url": "{{baseUrl}}/me/favorite-events"
+          }
+        },
+        {
+          "name": "Paso 5 — Events de artistas seguidos (tp4-user)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/me/following/events"
+          }
+        },
+        {
+          "name": "Paso 6 — Reschedule event 20 (tp3-user admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"start_date\": \"2030-05-10T21:00:00\"\n}"
+            },
+            "url": "{{baseUrl}}/admin/events/20/rescheduled",
+            "description": "Reprograma el evento 20 (favorito de tp4-user) → dispara la notificación vía RabbitMQ. Esperá 1-2 segundos. Se usa reschedule (no cancel) para que el evento siga vivo y puedas repetir la demo en los ensayos."
+          }
+        },
+        {
+          "name": "Paso 7 — List notifications (tp4-user)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Hay notificaciones', () => {",
+                  "  const data = pm.response.json();",
+                  "  pm.expect(data.length).to.be.above(0);",
+                  "  pm.collectionVariables.set('notificationId', String(data[0].id));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/me/notifications"
+          }
+        },
+        {
+          "name": "Paso 8 — Mark notification read (tp4-user)",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/me/notifications/{{notificationId}}/read"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4 — Errores y seguridad (casos negativos)",
+      "description": "Casos negativos. El token lo define el último Login que corriste:\n- **401**: sin token (no corras ningún Login, o el request va sin auth).\n- **403 admin con rol user**: corré **Login end-user** y pegá GET /admin/artists.\n- **403 /me con rol admin**: corré **Login admin** y pegá GET /me/notifications.\n- **400**: corré el Login del rol indicado en cada request.",
+      "item": [
+        {
+          "name": "401 — Admin sin token",
+          "auth": {
+            "type": "noauth"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/admin/artists",
+            "description": "Sin Authorization header. El microservicio catalog responde 401 (el Gateway deja pasar la request anónima)."
+          }
+        },
+        {
+          "name": "401 — /me/notifications sin token",
+          "auth": {
+            "type": "noauth"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/me/notifications",
+            "description": "Sin token. notification-service responde 401."
+          }
+        },
+        {
+          "name": "403 — Admin con rol user (login tp4-user)",
+          "auth": {
+            "type": "oauth2",
+            "oauth2": [
+              {
+                "key": "grant_type",
+                "value": "authorization_code",
+                "type": "string"
+              },
+              {
+                "key": "callbackUrl",
+                "value": "{{callbackUrl}}",
+                "type": "string"
+              },
+              {
+                "key": "authUrl",
+                "value": "{{keycloakAuthUrl}}",
+                "type": "string"
+              },
+              {
+                "key": "accessTokenUrl",
+                "value": "{{keycloakTokenUrl}}",
+                "type": "string"
+              },
+              {
+                "key": "clientId",
+                "value": "{{keycloakClientId}}",
+                "type": "string"
+              },
+              {
+                "key": "clientSecret",
+                "value": "{{keycloakClientSecret}}",
+                "type": "string"
+              },
+              {
+                "key": "scope",
+                "value": "openid",
+                "type": "string"
+              },
+              {
+                "key": "client_authentication",
+                "value": "body",
+                "type": "string"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/admin/artists",
+            "description": "Get New Access Token logueando con tp4-user / tp4pass (rol user). Token válido pero rol insuficiente para /admin/** → 403 Forbidden."
+          }
+        },
+        {
+          "name": "403 — /me/notifications con rol admin (login tp3-user)",
+          "auth": {
+            "type": "oauth2",
+            "oauth2": [
+              {
+                "key": "grant_type",
+                "value": "authorization_code",
+                "type": "string"
+              },
+              {
+                "key": "callbackUrl",
+                "value": "{{callbackUrl}}",
+                "type": "string"
+              },
+              {
+                "key": "authUrl",
+                "value": "{{keycloakAuthUrl}}",
+                "type": "string"
+              },
+              {
+                "key": "accessTokenUrl",
+                "value": "{{keycloakTokenUrl}}",
+                "type": "string"
+              },
+              {
+                "key": "clientId",
+                "value": "{{keycloakClientId}}",
+                "type": "string"
+              },
+              {
+                "key": "clientSecret",
+                "value": "{{keycloakClientSecret}}",
+                "type": "string"
+              },
+              {
+                "key": "scope",
+                "value": "openid",
+                "type": "string"
+              },
+              {
+                "key": "client_authentication",
+                "value": "body",
+                "type": "string"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/me/notifications",
+            "description": "Get New Access Token logueando con tp3-user / tp3pass (rol admin). Rol admin no puede usar /me/** → 403 Forbidden."
+          }
+        },
+        {
+          "name": "404 — Evento tentative en público",
+          "auth": {
+            "type": "noauth"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/events/{{publicEventIdTentative}}",
+            "description": "El evento 1 está en estado tentative; el catálogo público nunca lo expone → 404 Not Found."
+          }
+        },
+        {
+          "name": "409 — Registro duplicado",
+          "auth": {
+            "type": "noauth"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('409 Conflict (username/email ya en uso)', () => pm.response.to.have.status(409));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"demo.user\",\n  \"email\": \"demo.user@example.com\",\n  \"password\": \"Secret123!\",\n  \"first_name\": \"Demo\",\n  \"last_name\": \"User\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/register",
+            "description": "Ejecutar DESPUÉS de 'Register end user' (carpeta 1). Mismo username/email → 409 Conflict (AuthService valida unicidad y lanza ConflictException)."
+          }
+        },
+        {
+          "name": "400 — Follow artista inactivo (login tp4-user)",
+          "auth": {
+            "type": "oauth2",
+            "oauth2": [
+              {
+                "key": "grant_type",
+                "value": "authorization_code",
+                "type": "string"
+              },
+              {
+                "key": "callbackUrl",
+                "value": "{{callbackUrl}}",
+                "type": "string"
+              },
+              {
+                "key": "authUrl",
+                "value": "{{keycloakAuthUrl}}",
+                "type": "string"
+              },
+              {
+                "key": "accessTokenUrl",
+                "value": "{{keycloakTokenUrl}}",
+                "type": "string"
+              },
+              {
+                "key": "clientId",
+                "value": "{{keycloakClientId}}",
+                "type": "string"
+              },
+              {
+                "key": "clientSecret",
+                "value": "{{keycloakClientSecret}}",
+                "type": "string"
+              },
+              {
+                "key": "scope",
+                "value": "openid",
+                "type": "string"
+              },
+              {
+                "key": "client_authentication",
+                "value": "body",
+                "type": "string"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"artist_id\": {{artistIdInactive}}\n}"
+            },
+            "url": "{{baseUrl}}/me/following",
+            "description": "Artista 6 está inactivo (active=false). Regla de negocio: no se puede seguir un artista inactivo → 400 Bad Request."
+          }
+        },
+        {
+          "name": "400 — Favorito de evento tentative (login tp4-user)",
+          "auth": {
+            "type": "oauth2",
+            "oauth2": [
+              {
+                "key": "grant_type",
+                "value": "authorization_code",
+                "type": "string"
+              },
+              {
+                "key": "callbackUrl",
+                "value": "{{callbackUrl}}",
+                "type": "string"
+              },
+              {
+                "key": "authUrl",
+                "value": "{{keycloakAuthUrl}}",
+                "type": "string"
+              },
+              {
+                "key": "accessTokenUrl",
+                "value": "{{keycloakTokenUrl}}",
+                "type": "string"
+              },
+              {
+                "key": "clientId",
+                "value": "{{keycloakClientId}}",
+                "type": "string"
+              },
+              {
+                "key": "clientSecret",
+                "value": "{{keycloakClientSecret}}",
+                "type": "string"
+              },
+              {
+                "key": "scope",
+                "value": "openid",
+                "type": "string"
+              },
+              {
+                "key": "client_authentication",
+                "value": "body",
+                "type": "string"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_id\": {{publicEventIdTentative}}\n}"
+            },
+            "url": "{{baseUrl}}/me/favorite-events",
+            "description": "Evento 1 es tentative. No se puede marcar favorito un evento tentative → 400 Bad Request."
+          }
+        },
+        {
+          "name": "400 — Update artista con historial (login tp3-user)",
+          "auth": {
+            "type": "oauth2",
+            "oauth2": [
+              {
+                "key": "grant_type",
+                "value": "authorization_code",
+                "type": "string"
+              },
+              {
+                "key": "callbackUrl",
+                "value": "{{callbackUrl}}",
+                "type": "string"
+              },
+              {
+                "key": "authUrl",
+                "value": "{{keycloakAuthUrl}}",
+                "type": "string"
+              },
+              {
+                "key": "accessTokenUrl",
+                "value": "{{keycloakTokenUrl}}",
+                "type": "string"
+              },
+              {
+                "key": "clientId",
+                "value": "{{keycloakClientId}}",
+                "type": "string"
+              },
+              {
+                "key": "clientSecret",
+                "value": "{{keycloakClientSecret}}",
+                "type": "string"
+              },
+              {
+                "key": "scope",
+                "value": "openid",
+                "type": "string"
+              },
+              {
+                "key": "client_authentication",
+                "value": "body",
+                "type": "string"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"No permitido\",\n  \"genre\": \"pop\"\n}"
+            },
+            "url": "{{baseUrl}}/admin/artists/{{artistIdInLineup}}",
+            "description": "Artista 1 ya participó en eventos. Regla: no se edita, se desactiva → 400 Bad Request."
           }
         }
       ]

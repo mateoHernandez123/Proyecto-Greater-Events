@@ -1,6 +1,7 @@
 package ar.edu.unnoba.pdyc2026.usersocial.web;
 
 import ar.edu.unnoba.pdyc2026.common.exception.BusinessRuleException;
+import ar.edu.unnoba.pdyc2026.common.exception.ConflictException;
 import ar.edu.unnoba.pdyc2026.common.exception.ResourceNotFoundException;
 import java.util.Map;
 import java.util.concurrent.CompletionException;
@@ -25,6 +26,11 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", ex.getMessage()));
     }
 
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<Map<String, String>> conflict(ConflictException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", ex.getMessage()));
+    }
+
     @ExceptionHandler(CompletionException.class)
     public ResponseEntity<Map<String, String>> asyncError(CompletionException ex) {
         Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
@@ -33,6 +39,9 @@ public class ApiExceptionHandler {
         }
         if (cause instanceof BusinessRuleException badRequest) {
             return badRequest(badRequest);
+        }
+        if (cause instanceof ConflictException conflictEx) {
+            return conflict(conflictEx);
         }
         if (cause instanceof DataIntegrityViolationException dive) {
             return dataIntegrity(dive);

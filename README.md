@@ -45,11 +45,10 @@ curl -s http://localhost:8081/artists | head -c 300; echo
 curl -s http://localhost:8081/events  | head -c 300; echo
 
 # 3) Probar en Postman
-# 3.1) Importar API/Greater-Events.postman_collection.json y API/Greater-Events-Local.postman_environment.json
-# 3.2) Elegir el environment "Greater Events - Local" (ya trae secret, baseUrl, credenciales).
-# 3.3) Carpeta "Public endpoints": no requieren token (incluye POST /auth/register).
-# 3.4) Carpeta "Admin endpoints":  pestana Authorization -> Get New Access Token -> login tp3-user/tp3pass.
-# 3.5) Carpeta "End-user endpoints": idem pero login tp4-user/tp4pass.
+# 3.1) Importar SOLO API/Greater-Events.postman_collection.json (autocontenida: trae secret, baseUrl y credenciales adentro; no necesita environment).
+# 3.2) Carpeta "1 - Publicos": no requieren token (incluye POST /auth/register).
+# 3.3) Carpeta "3 - Admin": pestana Authorization -> Get New Access Token -> login tp3-user/tp3pass.
+# 3.4) Carpeta "2 - End-user": idem pero login tp4-user/tp4pass.
 # 3.6) Para notificaciones: como tp4-user marcar favorito/seguir artista; como tp3-user cancelar/reprogramar evento;
 #      volver a tp4-user y GET /me/notifications (RabbitMQ, puede tardar 1-2s).
 ```
@@ -479,8 +478,7 @@ $ curl -s -H "Authorization: Bearer not-a-real-token" http://localhost:8081/admi
 
 ### 0.1.8 Paso 7 — Probar con Postman (Authorization Code, lo que pide la consigna)
 
-1. **Import** → subí `API/Greater-Events.postman_collection.json` y `API/Greater-Events-Local.postman_environment.json`.
-2. Elegí el environment **Greater Events — Local** (arriba a la derecha). Ya viene completo:
+1. **Import** → subí **solo** `API/Greater-Events.postman_collection.json`. Es **autocontenida**: todas las variables viven dentro de la colección, no hace falta importar ningún environment. Valores ya cargados:
 
    | Variable               | Valor                                                               |
    | ---------------------- | ------------------------------------------------------------------- |
@@ -874,11 +872,9 @@ Deberías ver JSON (lista de artistas, eventos o usuarios). Sin token válido, S
 
 ### Paso 7 — Probar con Postman
 
-1. Abrí **Postman** → **Import** → subí **`API/Greater-Events.postman_collection.json`**.
-2. Importá también **`API/Greater-Events-Local.postman_environment.json`**.
-3. En el desplegable de entornos (arriba a la derecha), elegí **Greater Events — Local**.
-4. Revisá **`baseUrl`** (por defecto `http://localhost:8081`) y completá **`keycloakClientSecret`** con el secret del client `pdyc`.
-5. En la pestaña **Authorization** de la colección, Auth Type **OAuth 2.0**, usá **Get New Access Token**. La colección ya trae Authorization Code, callback `https://oauth.pstmn.io/v1/callback`, Auth URL, Access Token URL, Client ID `pdyc`, scope `openid` y client authentication en body.
+1. Abrí **Postman** → **Import** → subí **solo** **`API/Greater-Events.postman_collection.json`** (autocontenida; no hace falta environment).
+2. Las variables **`baseUrl`** (`http://localhost:8081`) y **`keycloakClientSecret`** (`pdyc-secret-dev`) ya vienen cargadas dentro de la colección.
+3. En la pestaña **Authorization** de la carpeta, Auth Type **OAuth 2.0**, usá **Get New Access Token**. La colección ya trae Authorization Code, callback `https://oauth.pstmn.io/v1/callback`, Auth URL, Access Token URL, Client ID `pdyc`, scope `openid` y client authentication en body.
 6. Iniciá sesión con el usuario creado en Keycloak y usá el token obtenido para ejecutar las requests.
 7. Las variables **`eventId`**, **`artistId`**, **`adminUserId`**, etc. están pensadas para el seed y la colección; leé la descripción de la colección en Postman para saber qué id usar en cada request.
 
